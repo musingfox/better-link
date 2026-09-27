@@ -92,6 +92,8 @@ expect_resp \
   - \
   'http://127.0.0.1:8799/www.youtube.com/watch?v=dQw4w9WgXcQ&t=42'
 
+expect_resp 'http://127.0.0.1:8799/favicon.ico' 404 - - -
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

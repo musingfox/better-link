@@ -98,3 +98,47 @@ test("the default https port is accepted", async () => {
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("https://bl.example/www.example.com/a");
 });
+
+test("favicon is a plain-text 404 with no location", async () => {
+  const res = await call("https://bl.example/favicon.ico");
+  expect(res.status).toBe(404);
+  expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+  expect(res.headers.get("location")).toBeNull();
+  expect(await res.text()).toBe("not found");
+});
+
+test("robots.txt is not a share link", async () => {
+  expect((await call("https://bl.example/robots.txt")).status).toBe(404);
+});
+
+test("a media path is not a share link", async () => {
+  expect((await call("https://bl.example/media/abc123")).status).toBe(404);
+});
+
+test("a host segment without a following slash is not a share link", async () => {
+  expect((await call("https://bl.example/www.youtube.com")).status).toBe(404);
+});
+
+test("an empty host segment is not a share link", async () => {
+  expect((await call("https://bl.example//www.example.com/a")).status).toBe(404);
+});
+
+test("localhost is not a share link", async () => {
+  expect((await call("https://bl.example/localhost/a")).status).toBe(404);
+});
+
+test("a host segment with a non-default port is not a share link", async () => {
+  expect((await call("https://bl.example/www.example.com:8443/a")).status).toBe(404);
+});
+
+test("userinfo in the path is not echoed", async () => {
+  const res = await call("https://bl.example/alice:s3cr3t@evil.example/x");
+  expect(res.status).toBe(404);
+  const body = await res.text();
+  expect(body).not.toContain("s3cr3t");
+  expect(body).not.toContain("evil");
+});
+
+test("an encoded at-sign in the host segment is not a share link", async () => {
+  expect((await call("https://bl.example/good.example%40evil.example/x")).status).toBe(404);
+});
