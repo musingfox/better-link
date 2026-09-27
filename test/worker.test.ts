@@ -287,3 +287,59 @@ test("a mobile facebook share link converts to the cleaned mobile canonical url"
     spy.mockRestore();
   }
 });
+
+test("a share link that does not redirect converts from the cleaned short link", async () => {
+  const spy = stubFetch(() => Promise.resolve(new Response(null, { status: 200 })));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.facebook.com/share/p/1Fu5ScGFUZ/?mibextid=wwXIfr")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("https://bl.example/www.facebook.com/share/p/1Fu5ScGFUZ/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a failed share-link fetch converts from the cleaned short link", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.instagram.com/share/reel/_gdkGEJBn/?igsh=QkFfQVp3Q3ZnTw%3D%3D")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("https://bl.example/www.instagram.com/share/reel/_gdkGEJBn/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("an unsupported-browser redirect converts from the cleaned short link", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo("https://www.facebook.com/unsupportedbrowser")));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.facebook.com/share/p/1Fu5ScGFUZ/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("https://bl.example/www.facebook.com/share/p/1Fu5ScGFUZ/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("an aborted share-link fetch converts from the cleaned short link", async () => {
+  const spy = stubFetch(() => Promise.reject(new DOMException("The operation was aborted.", "AbortError")));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.facebook.com/share/p/1Fu5ScGFUZ/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("https://bl.example/www.facebook.com/share/p/1Fu5ScGFUZ/");
+  } finally {
+    spy.mockRestore();
+  }
+});
