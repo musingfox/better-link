@@ -1,0 +1,16 @@
+{
+  "name": "better-link",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "wrangler types && tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "check": "bun run typecheck && bun test",
+    "smoke": "bash scripts/smoke.sh"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "~5.9.3",
+    "wrangler": "4.141.0"
+  }
+}
