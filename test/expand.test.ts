@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { expandShareLink, type Fetcher } from "../src/expand";
 
 const FB_POST_LOC =
@@ -332,6 +332,23 @@ test("three hops can land on a mobile facebook post", async () => {
   const result = await expandShareLink(new URL("https://facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
   expect(result?.href).toBe(M_LOC);
   expect(calls).toHaveLength(3);
+});
+
+test("one expansion shares a single five-second deadline", async () => {
+  const sentinel = new AbortController().signal;
+  const spy = spyOn(AbortSignal, "timeout").mockReturnValue(sentinel);
+  try {
+    const { fetcher, calls } = recording([
+      redirect("https://www.facebook.com/share/p/1Fu5ScGFUZ/", 301),
+      redirect(FB_POST_LOC),
+    ]);
+    await expandShareLink(new URL("https://facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
+    expect(spy.mock.calls).toEqual([[5000]]);
+    expect(calls[0]?.init.signal).toBe(sentinel);
+    expect(calls[1]?.init.signal).toBe(sentinel);
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 test("a share link that never leaves /share/ stops after three requests", async () => {

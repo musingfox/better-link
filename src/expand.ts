@@ -39,12 +39,14 @@ export async function expandShareLink(
   let current = new URL(url.href);
   current.protocol = "https:";
   current.hash = "";
+  const signal = AbortSignal.timeout(5000);
   try {
     for (let hop = 0; hop < HOP_CAP; hop++) {
       const response = await fetcher(current.href, {
         method: "HEAD",
         headers: { "User-Agent": "Go-http-client/1.1" },
         redirect: "manual",
+        signal,
       });
       if (response.status < 300 || response.status > 399) return null;
       const location = response.headers.get("Location");
