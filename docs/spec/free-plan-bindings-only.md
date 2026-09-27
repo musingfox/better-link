@@ -6,7 +6,7 @@ scope:
   - "wrangler.json"
   - "wrangler.jsonc"
   - "src/**"
-verify: null
+verify: check:test -f wrangler.jsonc && ! grep -qE 'kv_namespaces|r2_buckets|d1_databases|durable_objects|queues' wrangler.jsonc
 related: [cpu-budget-10ms, signed-cdn-urls-never-outlive-signature]
 source: better-link-design-spec
 adr: null
@@ -19,4 +19,3 @@ adr: null
 
 違反時不會被察覺：KV 免費方案每天只能寫 1,000 次，加了 KV 的版本在開發和低流量時一切正常，要到某天額度用完才開始默默寫入失敗。
 
-這條目前沒有可執行的 verify，因為 wrangler 設定檔還不存在。設定檔建立後，改成 check：對設定檔 grep `kv_namespaces|r2_buckets|d1_databases|durable_objects|queues` 必須沒有結果。
