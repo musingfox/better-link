@@ -23,6 +23,8 @@ const BLOCKED_NAMES = new Set([
   "__tn__",
   "is_from_webapp",
   "sender_device",
+  "refsrc",
+  "_rdr",
 ]);
 
 function segmentName(segment: string): string {

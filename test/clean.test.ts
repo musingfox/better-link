@@ -149,3 +149,33 @@ test("a segment whose raw name starts with ? is not a youtube whitelist name", (
     "https://www.youtube.com/watch",
   );
 });
+
+test("mobile facebook leftovers refsrc and _rdr are removed with the other tracking parameters", () => {
+  expect(
+    cleanUrl(
+      new URL(
+        "https://m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?rdid=JoOqIJIyWQqLPTAT&share_url=https%3A%2F%2Fm.facebook.com%2Fshare%2Fp%2F1Fu5ScGFUZ%2F&refsrc=deprecated&_rdr",
+      ),
+    ).href,
+  ).toBe(
+    "https://m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+  );
+});
+
+test("refsrc and a valueless _rdr are dropped while other segments stay", () => {
+  expect(cleanUrl(new URL("https://example.com/a?refsrc=x&_rdr&keep=1")).href).toBe(
+    "https://example.com/a?keep=1",
+  );
+});
+
+test("refsrc and _rdr are matched case-insensitively", () => {
+  expect(cleanUrl(new URL("https://example.com/a?REFSRC=x&_RDR=1&keep=1")).href).toBe(
+    "https://example.com/a?keep=1",
+  );
+});
+
+test("names that only extend refsrc or _rdr are kept", () => {
+  expect(cleanUrl(new URL("https://example.com/a?refsrcs=1&_rdrx=2")).href).toBe(
+    "https://example.com/a?refsrcs=1&_rdrx=2",
+  );
+});
