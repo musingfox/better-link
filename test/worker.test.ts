@@ -330,6 +330,30 @@ test("an unsupported-browser redirect converts from the cleaned short link", asy
   }
 });
 
+test("share-link expansion sends only the fixed upstream user agent", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo(FB_POST_LOC)));
+  try {
+    await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.facebook.com/share/p/1Fu5ScGFUZ/")}`,
+      {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36",
+        Cookie: "c_user=1; xs=s3cr3t",
+        Authorization: "Bearer s3cr3t",
+      },
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    expect(new Headers(init?.headers).get("user-agent")).toBe("Go-http-client/1.1");
+    expect(
+      JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(spy.mock.calls[0]?.[1]?.headers)]]),
+    ).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 test("an aborted share-link fetch converts from the cleaned short link", async () => {
   const spy = stubFetch(() => Promise.reject(new DOMException("The operation was aborted.", "AbortError")));
   try {
