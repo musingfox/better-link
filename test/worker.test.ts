@@ -1,4 +1,6 @@
+import { fileURLToPath } from "node:url";
 import { expect, test } from "bun:test";
+import { cleanUrl } from "../src/clean";
 import worker from "../src/index";
 
 const ctx = {
@@ -141,4 +143,66 @@ test("userinfo in the path is not echoed", async () => {
 
 test("an encoded at-sign in the host segment is not a share link", async () => {
   expect((await call("https://bl.example/good.example%40evil.example/x")).status).toBe(404);
+});
+
+test("a share link redirects to the cleaned https url", async () => {
+  const res = await call("https://bl.example/www.facebook.com/reel/1016339268064528");
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.facebook.com/reel/1016339268064528");
+});
+
+test("a share link is cleaned again instead of trusting the query", async () => {
+  const res = await call("https://bl.example/www.youtube.com/watch?v=abc&t=10&si=zz&utm_source=x");
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.youtube.com/watch?v=abc&t=10");
+});
+
+test("opening a converted share link lands on the cleaned original", async () => {
+  const original = "https://www.instagram.com/p/ABC/?img_index=2&igsh=xyz";
+  const share = await (await call(`https://bl.example/?url=${encodeURIComponent(original)}`)).text();
+  const res = await call(share);
+  expect(res.status).toBe(302);
+  const location = res.headers.get("location");
+  expect(location).toBe("https://www.instagram.com/p/ABC/?img_index=2");
+  expect(location).toBe(cleanUrl(new URL(original)).href);
+});
+
+test("a crawler user agent still gets the cleaned redirect", async () => {
+  const res = await call("https://bl.example/www.instagram.com/p/ABC/", {
+    "User-Agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)",
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.instagram.com/p/ABC/");
+});
+
+test("the host segment is matched case-insensitively", async () => {
+  const res = await call("https://bl.example/WWW.Example.COM/a");
+  expect(res.headers.get("location")).toBe("https://www.example.com/a");
+});
+
+test("encoded path bytes are preserved in the redirect", async () => {
+  const res = await call("https://bl.example/www.example.com/a%2Fb/%E4%B8%AD");
+  expect(res.headers.get("location")).toBe("https://www.example.com/a%2Fb/%E4%B8%AD");
+});
+
+test("encoded query bytes are preserved while tracking parameters are removed", async () => {
+  const res = await call("https://bl.example/example.com/a?q=a%20b&r=c~d&t=x+y&fbclid=1");
+  expect(res.headers.get("location")).toBe("https://example.com/a?q=a%20b&r=c~d&t=x+y");
+});
+
+test("a host with only a slash redirects to the site root", async () => {
+  const res = await call("https://bl.example/www.youtube.com/");
+  expect(res.headers.get("location")).toBe("https://www.youtube.com/");
+});
+
+test("tracking parameter names appear only in the cleaner module", async () => {
+  const pattern = /fbclid|igsh|img_index|utm_/;
+  const root = new URL("../src/", import.meta.url);
+  const matches: string[] = [];
+  for await (const file of new Bun.Glob("**/*.ts").scan({ cwd: fileURLToPath(root.href) })) {
+    const text = await Bun.file(new URL(file, root)).text();
+    if (pattern.test(text)) matches.push(file);
+  }
+  expect(matches).toContain("clean.ts");
+  expect(matches.filter((file) => file !== "clean.ts")).toEqual([]);
 });

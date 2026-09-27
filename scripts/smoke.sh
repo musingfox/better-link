@@ -94,6 +94,20 @@ expect_resp \
 
 expect_resp 'http://127.0.0.1:8799/favicon.ico' 404 - - -
 
+expect_resp \
+  'http://127.0.0.1:8799/www.instagram.com/p/ABC/?img_index=2&igsh=xyz' \
+  302 \
+  - \
+  'https://www.instagram.com/p/ABC/?img_index=2' \
+  -
+
+expect_resp \
+  'http://127.0.0.1:8799/example.com/a?q=a%20b&r=c~d&t=x+y&fbclid=1' \
+  302 \
+  - \
+  'https://example.com/a?q=a%20b&r=c~d&t=x+y' \
+  -
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

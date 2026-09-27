@@ -33,10 +33,27 @@ function convert(requestUrl: URL): Response {
   return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
+function shareRedirect(requestUrl: URL): Response {
+  const match = /^\/([^/]+)(\/.*)$/.exec(requestUrl.pathname);
+  if (!match) return text(404, "not found");
+  const host = match[1];
+  const path = match[2];
+  let candidate: URL;
+  try {
+    candidate = new URL(`https://${host}${path}${requestUrl.search}`);
+  } catch {
+    return text(404, "not found");
+  }
+  if (!isShareable(candidate) || candidate.hostname !== host.toLowerCase()) {
+    return text(404, "not found");
+  }
+  return Response.redirect(cleanUrl(candidate).href, 302);
+}
+
 export default {
   async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/") return convert(url);
-    return text(404, "not found");
+    return shareRedirect(url);
   },
 } satisfies ExportedHandler<Env>;
