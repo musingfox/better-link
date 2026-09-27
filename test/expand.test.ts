@@ -88,6 +88,47 @@ test("an instagram share link uses the same probe shape", async () => {
   expectProbe(calls[0].init);
 });
 
+const FB_SHARE = "https://www.facebook.com/share/p/1Fu5ScGFUZ/";
+
+test("a 200 without a location fails the expansion", async () => {
+  const { fetcher } = recording([new Response(null, { status: 200 })]);
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
+test("a 400 without a location fails the expansion", async () => {
+  const { fetcher } = recording([new Response(null, { status: 400 })]);
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
+test("a redirect without a location fails the expansion", async () => {
+  const { fetcher } = recording([new Response(null, { status: 302 })]);
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
+test("a 200 that carries a location still fails the expansion", async () => {
+  const { fetcher } = recording([
+    new Response(null, { status: 200, headers: { Location: FB_POST_LOC } }),
+  ]);
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
+test("a rejected probe fails the expansion", async () => {
+  const fetcher: Fetcher = () => Promise.reject(new TypeError("fetch failed"));
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
+test("an aborted probe fails the expansion", async () => {
+  const fetcher: Fetcher = () => Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
+test("a synchronous probe throw fails the expansion", async () => {
+  const fetcher: Fetcher = () => {
+    throw new Error("boom");
+  };
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+});
+
 test("an unrelated host is not expanded", async () => {
   const { fetcher, calls } = recording();
   const href = "https://www.youtube.com/watch?v=abc";

@@ -23,10 +23,16 @@ export async function expandShareLink(
   const current = new URL(url.href);
   current.protocol = "https:";
   current.hash = "";
-  await fetcher(current.href, {
-    method: "HEAD",
-    headers: { "User-Agent": "Go-http-client/1.1" },
-    redirect: "manual",
-  });
+  try {
+    const response = await fetcher(current.href, {
+      method: "HEAD",
+      headers: { "User-Agent": "Go-http-client/1.1" },
+      redirect: "manual",
+    });
+    if (response.status < 300 || response.status > 399) return null;
+    if (response.headers.get("Location") === null) return null;
+  } catch {
+    return null;
+  }
   return null;
 }
