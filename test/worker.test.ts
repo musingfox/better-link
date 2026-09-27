@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { cleanUrl } from "../src/clean";
 import worker from "../src/index";
 
@@ -10,6 +10,22 @@ const ctx = {
 
 function call(input: string, headers?: HeadersInit): Promise<Response> {
   return worker.fetch(new Request(input, { headers }), {} as Env, ctx);
+}
+
+const FB_POST_LOC =
+  "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?rdid=VGXEydyR2cRY58Er&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2Fp%2F1Fu5ScGFUZ%2F";
+const FB_REEL_LOC =
+  "https://www.facebook.com/reel/1016339268064528?rdid=yW04JMxj7FGRfmRn&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2Fv%2F1HSGH1rf7o%2F";
+const IG_REEL_LOC = "https://www.instagram.com/reel/DJvkjAlvNc8/?igsh=QkFfQVp3Q3ZnTw%3D%3D";
+const M_LOC =
+  "https://m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?rdid=JoOqIJIyWQqLPTAT&share_url=https%3A%2F%2Fm.facebook.com%2Fshare%2Fp%2F1Fu5ScGFUZ%2F&refsrc=deprecated&_rdr";
+
+function redirectTo(location: string, status = 302): Response {
+  return new Response(null, { status, headers: { Location: location } });
+}
+
+function stubFetch(impl: () => Promise<Response>) {
+  return spyOn(globalThis, "fetch").mockImplementation(impl as unknown as typeof fetch);
 }
 
 test("missing url is a plain-text 400 that mentions ?url=", async () => {
@@ -205,4 +221,69 @@ test("tracking parameter names appear only in the cleaner module", async () => {
   }
   expect(matches).toContain("clean.ts");
   expect(matches.filter((file) => file !== "clean.ts")).toEqual([]);
+});
+
+test("a facebook post share link converts to the cleaned canonical share link", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo(FB_POST_LOC)));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.facebook.com/share/p/1Fu5ScGFUZ/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe(
+      "https://bl.example/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook reel share link converts to the cleaned reel share link", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo(FB_REEL_LOC)));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.facebook.com/share/v/1HSGH1rf7o/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("https://bl.example/www.facebook.com/reel/1016339268064528");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("an instagram reel share link converts to the cleaned reel share link", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo(IG_REEL_LOC)));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://www.instagram.com/share/reel/_gdkGEJBn/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a mobile facebook share link converts to the cleaned mobile canonical url", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo(M_LOC)));
+  try {
+    const res = await call(
+      `https://bl.example/?url=${encodeURIComponent("https://m.facebook.com/share/p/1Fu5ScGFUZ/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe(
+      "https://bl.example/m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
 });

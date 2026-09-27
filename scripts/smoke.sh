@@ -108,6 +108,13 @@ expect_resp \
   'https://example.com/a?q=a%20b&r=c~d&t=x+y' \
   -
 
+expect_resp \
+  'http://127.0.0.1:8799/?url=https%3A%2F%2Fwww.facebook.com%2Fshare%2Fp%2F1Fu5ScGFUZ%2F' \
+  200 \
+  'text/plain; charset=utf-8' \
+  - \
+  'http://127.0.0.1:8799/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol'
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

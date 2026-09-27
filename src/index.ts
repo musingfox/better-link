@@ -1,4 +1,5 @@
 import { cleanUrl } from "./clean";
+import { expandShareLink } from "./expand";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 
@@ -19,7 +20,7 @@ function isShareable(url: URL): boolean {
   );
 }
 
-function convert(requestUrl: URL): Response {
+async function convert(requestUrl: URL): Promise<Response> {
   const raw = requestUrl.searchParams.get("url");
   if (raw === null || raw === "") return text(400, CONVERT_HINT);
   let target: URL;
@@ -29,7 +30,7 @@ function convert(requestUrl: URL): Response {
     return text(400, CONVERT_HINT);
   }
   if (!isShareable(target)) return text(400, CONVERT_HINT);
-  const cleaned = cleanUrl(target);
+  const cleaned = cleanUrl((await expandShareLink(target)) ?? target);
   return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
