@@ -78,6 +78,13 @@ test("a facebook share link is probed with a manual HEAD and the go client user 
   expectProbe(calls[0].init);
 });
 
+test("a non-special scheme is still probed as https without a fragment", async () => {
+  const { fetcher, calls } = recording([redirect("https://www.facebook.com/reel/1016339268064528")]);
+  await expandShareLink(new URL("foo://www.facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
+  expect(calls[0].input).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
+  expectProbe(calls[0].init);
+});
+
 test("the probe upgrades http to https and drops the fragment but keeps the query", async () => {
   const { fetcher, calls } = recording([redirect(FB_POST_LOC)]);
   await expandShareLink(
