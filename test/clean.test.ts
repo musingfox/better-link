@@ -73,12 +73,6 @@ test("the input URL is not mutated", () => {
   expect(u.href).toBe("https://example.com/?fbclid=1");
 });
 
-test("facebook share short links are not expanded", () => {
-  expect(cleanUrl(new URL("https://www.facebook.com/share/r/15abc/?mibextid=wwXIfr")).href).toBe(
-    "https://www.facebook.com/share/r/15abc/",
-  );
-});
-
 test("instagram keeps only img_index", () => {
   expect(
     cleanUrl(new URL("https://www.instagram.com/p/ABC123/?img_index=2&igsh=MXh5")).href,
@@ -118,12 +112,6 @@ test("music.youtube.com keeps v", () => {
 test("youtube whitelist names are case-sensitive", () => {
   expect(cleanUrl(new URL("https://youtube.com/watch?V=abc&v=def")).href).toBe(
     "https://youtube.com/watch?v=def",
-  );
-});
-
-test("instagram share short links are not expanded", () => {
-  expect(cleanUrl(new URL("https://instagram.com/share/reel/abc/?igsh=1")).href).toBe(
-    "https://instagram.com/share/reel/abc/",
   );
 });
 

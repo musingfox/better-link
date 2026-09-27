@@ -30,9 +30,10 @@ export async function expandShareLink(
       redirect: "manual",
     });
     if (response.status < 300 || response.status > 399) return null;
-    if (response.headers.get("Location") === null) return null;
+    const location = response.headers.get("Location");
+    if (location === null) return null;
+    return new URL(location, current);
   } catch {
     return null;
   }
-  return null;
 }
