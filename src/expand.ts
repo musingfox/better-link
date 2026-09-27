@@ -22,19 +22,8 @@ function isShareLink(url: URL): boolean {
   );
 }
 
-// WHATWG refuses to set protocol from a non-special scheme (foo:) onto https:.
-function httpsProbeUrl(url: URL): URL {
-  const current = new URL(url.href);
-  current.hash = "";
-  current.protocol = "https:";
-  if (current.protocol === "https:") return current;
-  const probe = new URL("https://placeholder.invalid/");
-  probe.hostname = url.hostname;
-  probe.port = url.port;
-  probe.pathname = url.pathname;
-  probe.search = url.search;
-  probe.hash = "";
-  return probe;
+function probe(t: URL): URL {
+  return new URL(`https://${t.hostname}${t.pathname}${t.search}`);
 }
 
 function blockedDestination(pathname: string): boolean {
@@ -57,7 +46,7 @@ export async function expandShareLink(
   fetcher: Fetcher = (input, init) => fetch(input, init),
 ): Promise<URL | null> {
   if (!isShareLink(url)) return url;
-  let current = httpsProbeUrl(url);
+  let current = probe(url);
   const signal = AbortSignal.timeout(5000);
   try {
     for (let hop = 0; hop < HOP_CAP; hop++) {
@@ -73,7 +62,7 @@ export async function expandShareLink(
       const next = new URL(location, current);
       if (!trustedLocation(current, next)) return null;
       if (isShareLink(next)) {
-        current = next;
+        current = probe(next);
         continue;
       }
       return next;

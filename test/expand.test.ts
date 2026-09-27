@@ -143,6 +143,27 @@ test("an instagram share link uses the same probe shape", async () => {
   expectProbe(calls[0].init);
 });
 
+test("a share link with an explicit port is probed without the port", async () => {
+  const { fetcher, calls } = recording([redirect(FB_POST_LOC)]);
+  await expandShareLink(new URL("https://www.facebook.com:8443/share/p/1Fu5ScGFUZ/"), fetcher);
+  expect(calls[0].input).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
+  expectProbe(calls[0].init);
+});
+
+test("a follow-up share location is probed without its fragment", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/share/p/1Fu5ScGFUZ/#frag", 301),
+    redirect(FB_POST_LOC),
+  ]);
+  await expandShareLink(new URL("https://facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
+  expect(calls.map((call) => call.input)).toEqual([
+    "https://facebook.com/share/p/1Fu5ScGFUZ/",
+    "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+  ]);
+  expectProbe(calls[0].init);
+  expectProbe(calls[1].init);
+});
+
 const FB_SHARE = "https://www.facebook.com/share/p/1Fu5ScGFUZ/";
 
 test("a 200 without a location fails the expansion", async () => {
