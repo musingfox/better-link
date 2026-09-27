@@ -58,7 +58,7 @@ export async function expandShareLink(
       });
       if (response.status < 300 || response.status > 399) return null;
       const location = response.headers.get("Location");
-      if (location === null) return null;
+      if (!location) return null;
       const next = new URL(location, current);
       if (!trustedLocation(current, next)) return null;
       if (isShareLink(next)) {

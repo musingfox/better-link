@@ -205,6 +205,14 @@ test("a synchronous probe throw fails the expansion", async () => {
   expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
 });
 
+test("a redirect with an empty location fails after one request", async () => {
+  const { fetcher, calls } = recording([
+    new Response(null, { status: 302, headers: { Location: "" } }),
+  ]);
+  expect(await expandShareLink(new URL(FB_SHARE), fetcher)).toBeNull();
+  expect(calls).toHaveLength(1);
+});
+
 test("a facebook post share link resolves to the redirect location with its query intact", async () => {
   const { fetcher } = recording([redirect(FB_POST_LOC)]);
   const result = await expandShareLink(new URL("https://www.facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
