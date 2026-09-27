@@ -15,6 +15,21 @@ function isShareLink(url: URL): boolean {
   return platform(url.hostname) !== null && SHARE_PATH.test(url.pathname);
 }
 
+function blockedDestination(pathname: string): boolean {
+  return pathname.startsWith("/unsupportedbrowser") || pathname.startsWith("/accounts/login");
+}
+
+function trustedLocation(from: URL, next: URL): boolean {
+  return (
+    next.protocol === "https:" &&
+    next.username === "" &&
+    next.password === "" &&
+    next.port === "" &&
+    platform(next.hostname) === platform(from.hostname) &&
+    !blockedDestination(next.pathname)
+  );
+}
+
 export async function expandShareLink(
   url: URL,
   fetcher: Fetcher = (input, init) => fetch(input, init),
@@ -32,7 +47,9 @@ export async function expandShareLink(
     if (response.status < 300 || response.status > 399) return null;
     const location = response.headers.get("Location");
     if (location === null) return null;
-    return new URL(location, current);
+    const next = new URL(location, current);
+    if (!trustedLocation(current, next)) return null;
+    return next;
   } catch {
     return null;
   }

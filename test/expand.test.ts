@@ -204,6 +204,85 @@ test("a 307 redirect resolves the same way as a 302", async () => {
   expect(result?.href).toBe(FB_REEL_LOC);
 });
 
+async function rejected(url: string, location: string): Promise<number> {
+  const { fetcher, calls } = recording([redirect(location)]);
+  expect(await expandShareLink(new URL(url), fetcher)).toBeNull();
+  return calls.length;
+}
+
+test("a facebook unsupported-browser redirect fails the expansion", async () => {
+  expect(
+    await rejected("https://www.facebook.com/share/p/1Fu5ScGFUZ/", "https://www.facebook.com/unsupportedbrowser"),
+  ).toBe(1);
+});
+
+test("an instagram share link sent to facebook unsupported-browser fails", async () => {
+  expect(
+    await rejected(
+      "https://www.instagram.com/share/reel/_gdkGEJBn/",
+      "https://www.facebook.com/unsupportedbrowser",
+    ),
+  ).toBe(1);
+});
+
+test("an instagram login redirect fails the expansion", async () => {
+  expect(
+    await rejected(
+      "https://www.instagram.com/share/reel/_gdkGEJBn/",
+      "https://www.instagram.com/accounts/login/?next=%2Fshare%2Freel%2F_gdkGEJBn%2F",
+    ),
+  ).toBe(1);
+});
+
+test("an http location fails the expansion", async () => {
+  expect(
+    await rejected(
+      "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+      "http://www.facebook.com/reel/1016339268064528",
+    ),
+  ).toBe(1);
+});
+
+test("a cross-platform location fails the expansion", async () => {
+  expect(
+    await rejected(
+      "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+      "https://www.instagram.com/reel/DJvkjAlvNc8/",
+    ),
+  ).toBe(1);
+});
+
+test("a lookalike facebook host fails the expansion", async () => {
+  expect(
+    await rejected(
+      "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+      "https://www.facebook.com.evil.example/reel/1016339268064528",
+    ),
+  ).toBe(1);
+});
+
+test("a location with userinfo fails the expansion", async () => {
+  expect(
+    await rejected(
+      "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+      "https://user:pw@www.facebook.com/reel/1016339268064528",
+    ),
+  ).toBe(1);
+});
+
+test("a location with an explicit port fails the expansion", async () => {
+  expect(
+    await rejected(
+      "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+      "https://www.facebook.com:8443/reel/1016339268064528",
+    ),
+  ).toBe(1);
+});
+
+test("an unparseable location fails the expansion", async () => {
+  expect(await rejected("https://www.facebook.com/share/p/1Fu5ScGFUZ/", "https://[")).toBe(1);
+});
+
 test("an unrelated host is not expanded", async () => {
   const { fetcher, calls } = recording();
   const href = "https://www.youtube.com/watch?v=abc";
