@@ -367,3 +367,29 @@ test("an aborted share-link fetch converts from the cleaned short link", async (
     spy.mockRestore();
   }
 });
+
+test("opening a facebook share path redirects to the cleaned short link without fetching", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call("https://bl.example/www.facebook.com/share/p/1Fu5ScGFUZ/?mibextid=wwXIfr");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("opening an instagram share path redirects to the cleaned short link without fetching", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call(
+      "https://bl.example/www.instagram.com/share/reel/_gdkGEJBn/?igsh=QkFfQVp3Q3ZnTw%3D%3D",
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/share/reel/_gdkGEJBn/");
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
