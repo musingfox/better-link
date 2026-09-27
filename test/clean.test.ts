@@ -79,6 +79,60 @@ test("facebook share short links are not expanded", () => {
   );
 });
 
+test("instagram keeps only img_index", () => {
+  expect(
+    cleanUrl(new URL("https://www.instagram.com/p/ABC123/?img_index=2&igsh=MXh5")).href,
+  ).toBe("https://www.instagram.com/p/ABC123/?img_index=2");
+});
+
+test("instagram host matching is case-insensitive and drops every non-functional parameter", () => {
+  expect(
+    cleanUrl(new URL("https://WWW.Instagram.COM/reel/XYZ/?igsh=abc&utm_source=ig_web_copy_link")).href,
+  ).toBe("https://www.instagram.com/reel/XYZ/");
+});
+
+test("youtube keeps v and t", () => {
+  expect(
+    cleanUrl(new URL("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42&si=abc&feature=share")).href,
+  ).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42");
+});
+
+test("youtu.be keeps t", () => {
+  expect(cleanUrl(new URL("https://youtu.be/dQw4w9WgXcQ?si=abc&t=42")).href).toBe(
+    "https://youtu.be/dQw4w9WgXcQ?t=42",
+  );
+});
+
+test("mobile youtube keeps v, list, and index", () => {
+  expect(cleanUrl(new URL("https://m.youtube.com/watch?v=abc&list=PL123&index=3&pp=xyz")).href).toBe(
+    "https://m.youtube.com/watch?v=abc&list=PL123&index=3",
+  );
+});
+
+test("music.youtube.com keeps v", () => {
+  expect(cleanUrl(new URL("https://music.youtube.com/watch?v=abc&si=zz")).href).toBe(
+    "https://music.youtube.com/watch?v=abc",
+  );
+});
+
+test("youtube whitelist names are case-sensitive", () => {
+  expect(cleanUrl(new URL("https://youtube.com/watch?V=abc&v=def")).href).toBe(
+    "https://youtube.com/watch?v=def",
+  );
+});
+
+test("instagram share short links are not expanded", () => {
+  expect(cleanUrl(new URL("https://instagram.com/share/reel/abc/?igsh=1")).href).toBe(
+    "https://instagram.com/share/reel/abc/",
+  );
+});
+
+test("a spoofed instagram host is not whitelisted", () => {
+  expect(cleanUrl(new URL("https://instagram.com.evil.example/p/1?img_index=1&foo=2&igsh=3")).href).toBe(
+    "https://instagram.com.evil.example/p/1?img_index=1&foo=2",
+  );
+});
+
 test("cleaning is idempotent for preserved encodings", () => {
   const once = cleanUrl(new URL("https://example.com/a?q=a%20b&r=c~d&s=%E4%B8%AD&t=x+y&fbclid=1"));
   expect(cleanUrl(once).href).toBe("https://example.com/a?q=a%20b&r=c~d&s=%E4%B8%AD&t=x+y");
@@ -87,5 +141,11 @@ test("cleaning is idempotent for preserved encodings", () => {
 test("a segment whose raw name starts with ? is not a blacklisted name", () => {
   expect(cleanUrl(new URL("https://example.com/a?x=1&?fbclid=2")).href).toBe(
     "https://example.com/a?x=1&?fbclid=2",
+  );
+});
+
+test("a segment whose raw name starts with ? is not a youtube whitelist name", () => {
+  expect(cleanUrl(new URL("https://www.youtube.com/watch?x=1&?v=abc")).href).toBe(
+    "https://www.youtube.com/watch",
   );
 });
