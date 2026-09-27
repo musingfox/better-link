@@ -20,6 +20,13 @@ export async function expandShareLink(
   fetcher: Fetcher = (input, init) => fetch(input, init),
 ): Promise<URL | null> {
   if (!isShareLink(url)) return url;
-  void fetcher;
+  const current = new URL(url.href);
+  current.protocol = "https:";
+  current.hash = "";
+  await fetcher(current.href, {
+    method: "HEAD",
+    headers: { "User-Agent": "Go-http-client/1.1" },
+    redirect: "manual",
+  });
   return null;
 }
