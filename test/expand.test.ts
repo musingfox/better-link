@@ -71,16 +71,59 @@ test("a lookalike instagram host is not expanded", async () => {
   expect(calls).toHaveLength(0);
 });
 
+test("a non-http scheme is returned unchanged without a fetch", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/reel/1016339268064528"),
+  ]);
+  const href = "foo://www.facebook.com/share/p/1Fu5ScGFUZ/";
+  const result = await expandShareLink(new URL(href), fetcher);
+  expect(calls).toHaveLength(0);
+  expect(result?.href).toBe(new URL(href).href);
+});
+
+test("a share link with a username and password is returned unchanged without a fetch", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/reel/1016339268064528"),
+  ]);
+  const href = "https://u:p@www.facebook.com/share/p/1Fu5ScGFUZ/";
+  const result = await expandShareLink(new URL(href), fetcher);
+  expect(calls).toHaveLength(0);
+  expect(result?.href).toBe(href);
+});
+
+test("a share link with only a username is returned unchanged without a fetch", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/reel/1016339268064528"),
+  ]);
+  const href = "https://u@www.facebook.com/share/p/1Fu5ScGFUZ/";
+  const result = await expandShareLink(new URL(href), fetcher);
+  expect(calls).toHaveLength(0);
+  expect(result?.href).toBe(href);
+});
+
+test("a share link with only a password is returned unchanged without a fetch", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/reel/1016339268064528"),
+  ]);
+  const href = "https://:p@www.facebook.com/share/p/1Fu5ScGFUZ/";
+  const result = await expandShareLink(new URL(href), fetcher);
+  expect(calls).toHaveLength(0);
+  expect(result?.href).toBe(href);
+});
+
+test("an ftp share link is returned unchanged without a fetch", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/reel/1016339268064528"),
+  ]);
+  const href = "ftp://www.facebook.com/share/p/1Fu5ScGFUZ/";
+  const result = await expandShareLink(new URL(href), fetcher);
+  expect(calls).toHaveLength(0);
+  expect(result?.href).toBe(href);
+});
+
 test("a facebook share link is probed with a manual HEAD and the go client user agent", async () => {
   const { fetcher, calls } = recording([redirect(FB_POST_LOC)]);
   await expandShareLink(new URL("https://www.facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
-  expect(calls[0].input).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
-  expectProbe(calls[0].init);
-});
-
-test("a non-special scheme is still probed as https without a fragment", async () => {
-  const { fetcher, calls } = recording([redirect("https://www.facebook.com/reel/1016339268064528")]);
-  await expandShareLink(new URL("foo://www.facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
   expect(calls[0].input).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
   expectProbe(calls[0].init);
 });

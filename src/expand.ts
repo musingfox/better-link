@@ -13,7 +13,13 @@ function platform(hostname: string): "facebook" | "instagram" | null {
 }
 
 function isShareLink(url: URL): boolean {
-  return platform(url.hostname) !== null && SHARE_PATH.test(url.pathname);
+  return (
+    (url.protocol === "http:" || url.protocol === "https:") &&
+    url.username === "" &&
+    url.password === "" &&
+    platform(url.hostname) !== null &&
+    SHARE_PATH.test(url.pathname)
+  );
 }
 
 // WHATWG refuses to set protocol from a non-special scheme (foo:) onto https:.
