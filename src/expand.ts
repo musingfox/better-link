@@ -4,6 +4,7 @@ const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "m.facebook.
 const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
 
 const SHARE_PATH = /^\/share\/[^/]+/;
+const HOP_CAP = 3;
 
 function platform(hostname: string): "facebook" | "instagram" | null {
   if (FACEBOOK_HOSTS.has(hostname)) return "facebook";
@@ -35,21 +36,28 @@ export async function expandShareLink(
   fetcher: Fetcher = (input, init) => fetch(input, init),
 ): Promise<URL | null> {
   if (!isShareLink(url)) return url;
-  const current = new URL(url.href);
+  let current = new URL(url.href);
   current.protocol = "https:";
   current.hash = "";
   try {
-    const response = await fetcher(current.href, {
-      method: "HEAD",
-      headers: { "User-Agent": "Go-http-client/1.1" },
-      redirect: "manual",
-    });
-    if (response.status < 300 || response.status > 399) return null;
-    const location = response.headers.get("Location");
-    if (location === null) return null;
-    const next = new URL(location, current);
-    if (!trustedLocation(current, next)) return null;
-    return next;
+    for (let hop = 0; hop < HOP_CAP; hop++) {
+      const response = await fetcher(current.href, {
+        method: "HEAD",
+        headers: { "User-Agent": "Go-http-client/1.1" },
+        redirect: "manual",
+      });
+      if (response.status < 300 || response.status > 399) return null;
+      const location = response.headers.get("Location");
+      if (location === null) return null;
+      const next = new URL(location, current);
+      if (!trustedLocation(current, next)) return null;
+      if (isShareLink(next)) {
+        current = next;
+        continue;
+      }
+      return next;
+    }
+    return null;
   } catch {
     return null;
   }

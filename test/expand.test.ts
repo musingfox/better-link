@@ -290,3 +290,53 @@ test("an unrelated host is not expanded", async () => {
   expect(result?.href).toBe(href);
   expect(calls).toHaveLength(0);
 });
+
+test("a facebook share link that redirects to www is followed to the post", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/share/p/1Fu5ScGFUZ/", 301),
+    redirect(FB_POST_LOC),
+  ]);
+  const result = await expandShareLink(new URL("https://facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
+  expect(result?.href).toBe(FB_POST_LOC);
+  expect(calls.map((call) => call.input)).toEqual([
+    "https://facebook.com/share/p/1Fu5ScGFUZ/",
+    "https://www.facebook.com/share/p/1Fu5ScGFUZ/",
+  ]);
+});
+
+test("an instagram share link that redirects to www is followed to the post", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.instagram.com/share/p/BBFVaX2n1Y/", 301),
+    redirect(IG_POST_LOC),
+  ]);
+  const result = await expandShareLink(new URL("https://instagram.com/share/p/BBFVaX2n1Y/"), fetcher);
+  expect(result?.href).toBe(IG_POST_LOC);
+  expect(calls).toHaveLength(2);
+});
+
+test("a relative location is resolved against the hop that returned it", async () => {
+  const { fetcher } = recording([
+    redirect("https://www.facebook.com/share/v/1HSGH1rf7o/", 301),
+    redirect("/reel/1016339268064528"),
+  ]);
+  const result = await expandShareLink(new URL("https://facebook.com/share/v/1HSGH1rf7o/"), fetcher);
+  expect(result?.href).toBe("https://www.facebook.com/reel/1016339268064528");
+});
+
+test("three hops can land on a mobile facebook post", async () => {
+  const { fetcher, calls } = recording([
+    redirect("https://www.facebook.com/share/p/1Fu5ScGFUZ/", 301),
+    redirect("https://m.facebook.com/share/p/1Fu5ScGFUZ/"),
+    redirect(M_LOC),
+  ]);
+  const result = await expandShareLink(new URL("https://facebook.com/share/p/1Fu5ScGFUZ/"), fetcher);
+  expect(result?.href).toBe(M_LOC);
+  expect(calls).toHaveLength(3);
+});
+
+test("a share link that never leaves /share/ stops after three requests", async () => {
+  const share = "https://www.facebook.com/share/p/1Fu5ScGFUZ/";
+  const { fetcher, calls } = recording([redirect(share)]);
+  expect(await expandShareLink(new URL(share), fetcher)).toBeNull();
+  expect(calls).toHaveLength(3);
+});
