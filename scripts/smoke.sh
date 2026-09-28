@@ -48,8 +48,13 @@ header_value() {
 
 expect_resp() {
   local url="$1" want_status="$2" want_ct="$3" want_loc="$4" want_body="$5"
+  local ua="${6:-}"
   local hdr="$tmp/hdr" body="$tmp/body"
-  curl -s -D "$hdr" -o "$body" "$url" || true
+  local args=(-s -D "$hdr" -o "$body")
+  if [ -n "$ua" ]; then
+    args+=(-A "$ua")
+  fi
+  curl "${args[@]}" "$url" || true
   local status ct loc
   status=$(awk 'NR==1 { print $2 }' "$hdr" | tr -d '\r')
   ct=$(header_value "$hdr" content-type)
@@ -114,6 +119,14 @@ expect_resp \
   'text/plain; charset=utf-8' \
   - \
   'http://127.0.0.1:8799/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol'
+
+expect_resp \
+  'http://127.0.0.1:8799/x.com/jack/status/20?s=20&utm_source=x' \
+  302 \
+  - \
+  'https://fixupx.com/jack/status/20?s=20' \
+  - \
+  'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
 
 if [ "$fail" -ne 0 ]; then
   exit 1

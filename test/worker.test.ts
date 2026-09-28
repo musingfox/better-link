@@ -393,3 +393,136 @@ test("opening an instagram share path redirects to the cleaned short link withou
     spy.mockRestore();
   }
 });
+
+const DISCORD = "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)";
+
+test("a discord crawler on x.com is redirected to the fix service", async () => {
+  const res = await call("https://bl.example/x.com/jack/status/20", { "User-Agent": DISCORD });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixupx.com/jack/status/20");
+});
+
+test("a discord crawler on tiktok is redirected to the fix service", async () => {
+  const res = await call("https://bl.example/www.tiktok.com/@scout2015/video/6718335390845095173", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe(
+    "https://tnktok.com/@scout2015/video/6718335390845095173",
+  );
+});
+
+test("a discord crawler on bluesky is redirected to the fix service", async () => {
+  const res = await call("https://bl.example/bsky.app/profile/bsky.app/post/3mw2cdr44fc2a", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://bskx.app/profile/bsky.app/post/3mw2cdr44fc2a");
+});
+
+test("a discord crawler on reddit is redirected to the fix service", async () => {
+  const res = await call("https://bl.example/www.reddit.com/r/IAmA/comments/z1c9z/", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://vxreddit.com/r/IAmA/comments/z1c9z/");
+});
+
+test("a discord crawler on pixiv is redirected to the fix service", async () => {
+  const res = await call("https://bl.example/www.pixiv.net/en/artworks/150105774", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://phixiv.net/en/artworks/150105774");
+});
+
+test("a discord crawler on threads is redirected to the fix service", async () => {
+  const res = await call("https://bl.example/www.threads.com/@zuck/post/CuP48CiS5sx", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixthreads.seria.moe/@zuck/post/CuP48CiS5sx");
+});
+
+test("a telegram crawler keeps the functional query on the fix service", async () => {
+  const res = await call("https://bl.example/twitter.com/jack/status/20?s=20&utm_source=x&fbclid=1", {
+    "User-Agent": "TelegramBot (like TwitterBot)",
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixupx.com/jack/status/20?s=20");
+});
+
+test("a discord crawler keeps a pixiv illustration query on the fix service", async () => {
+  const res = await call(
+    "https://bl.example/www.pixiv.net/member_illust.php?mode=medium&illust_id=150105774",
+    { "User-Agent": DISCORD },
+  );
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe(
+    "https://phixiv.net/member_illust.php?mode=medium&illust_id=150105774",
+  );
+});
+
+test("a discord crawler matches the source host regardless of letter case", async () => {
+  const res = await call("https://bl.example/X.COM/jack/status/20", { "User-Agent": DISCORD });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixupx.com/jack/status/20");
+});
+
+test("a discord crawler keeps a double slash on the fix service host", async () => {
+  const res = await call("https://bl.example/x.com//evil.example/a", { "User-Agent": DISCORD });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixupx.com//evil.example/a");
+});
+
+test("a discord crawler on a listed host root is redirected to the fix service root", async () => {
+  const res = await call("https://bl.example/x.com/", { "User-Agent": DISCORD });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixupx.com/");
+});
+
+test("a discord crawler on a listed host does not fetch", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call("https://bl.example/vm.tiktok.com/ZMabc123/", { "User-Agent": DISCORD });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://tnktok.com/ZMabc123/");
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler redirect does not leak request headers", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call("https://bl.example/x.com/jack/status/20", {
+      "User-Agent": DISCORD,
+      Cookie: "session=s3cr3t",
+      Authorization: "Bearer s3cr3t",
+    });
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location");
+    expect(location).toBe("https://fixupx.com/jack/status/20");
+    expect(spy).toHaveBeenCalledTimes(0);
+    const body = await res.text();
+    const dumped = `${location}\n${body}\n${[...res.headers].map(([name, value]) => `${name}: ${value}`).join("\n")}`;
+    expect(dumped).not.toContain("s3cr3t");
+    expect(dumped).not.toContain(DISCORD);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler still gets not found when the host has no slash", async () => {
+  const res = await call("https://bl.example/x.com", { "User-Agent": DISCORD });
+  expect(res.status).toBe(404);
+  expect(await res.text()).toBe("not found");
+  expect(res.headers.get("location")).toBeNull();
+});
+
+test("a crawler still gets not found for a host without a dot", async () => {
+  const res = await call("https://bl.example/localhost/a", { "User-Agent": DISCORD });
+  expect(res.status).toBe(404);
+  expect(await res.text()).toBe("not found");
+});

@@ -1,5 +1,7 @@
 import { cleanUrl } from "./clean";
+import { isCrawler } from "./crawler";
 import { expandShareLink, isShareable } from "./expand";
+import { fixServiceUrl } from "./fix-services";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 
@@ -24,7 +26,7 @@ async function convert(requestUrl: URL): Promise<Response> {
   return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
-function shareRedirect(requestUrl: URL): Response {
+function shareRedirect(requestUrl: URL, userAgent: string | null): Response {
   const match = /^\/([^/]+)(\/.*)$/.exec(requestUrl.pathname);
   if (!match) return text(404, "not found");
   const host = match[1];
@@ -38,13 +40,15 @@ function shareRedirect(requestUrl: URL): Response {
   if (!isShareable(candidate) || candidate.hostname !== host.toLowerCase()) {
     return text(404, "not found");
   }
-  return Response.redirect(cleanUrl(candidate).href, 302);
+  const cleaned = cleanUrl(candidate);
+  const fixed = isCrawler(userAgent) ? fixServiceUrl(cleaned) : null;
+  return Response.redirect((fixed ?? cleaned).href, 302);
 }
 
 export default {
   async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/") return convert(url);
-    return shareRedirect(url);
+    return shareRedirect(url, request.headers.get("User-Agent"));
   },
 } satisfies ExportedHandler<Env>;
