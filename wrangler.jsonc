@@ -2,5 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "better-link",
   "main": "src/index.ts",
-  "compatibility_date": "2026-09-25"
+  "compatibility_date": "2026-09-25",
+  "observability": {
+    "enabled": true
+  }
 }
