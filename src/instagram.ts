@@ -1,8 +1,15 @@
+import type { Fetcher } from "./expand";
+
 export type Post = {
   username: string;
   caption: string;
   mediaUrl: string;
 };
+
+export interface PostCache {
+  match(key: string): Promise<Response | undefined>;
+  put(key: string, response: Response): Promise<void>;
+}
 
 const ENTITY = /&(?:#x([0-9a-fA-F]+)|#(\d+)|amp|lt|gt|quot|apos);/gi;
 
@@ -87,6 +94,22 @@ function mediaUrlOf(html: string): string | null {
   url.protocol = "https:";
   url.host = "scontent.cdninstagram.com";
   return url.href;
+}
+
+const EMBED_UA = "Go-http-client/1.1";
+
+export async function instagramPost(
+  shortcode: string,
+  deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
+): Promise<Post | null> {
+  const fetcher = deps.fetcher ?? ((input, init) => fetch(input, init));
+  const response = await fetcher(`https://www.instagram.com/p/${shortcode}/embed/captioned/`, {
+    headers: { "User-Agent": EMBED_UA },
+    redirect: "manual",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (response.status !== 200) return null;
+  return parseEmbed(await response.text());
 }
 
 export function parseEmbed(html: string): Post | null {

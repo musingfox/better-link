@@ -1,7 +1,9 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { parseEmbed } from "../src/instagram";
+import type { Fetcher } from "../src/expand";
+import { instagramPost, parseEmbed } from "../src/instagram";
+import { fakeCache } from "./support/fake-cache";
 
 const EGG_MEDIA =
   "https://scontent.cdninstagram.com/v/t51.82787-15/625727639_18338153224242257_3827527793310630488_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=104&ig_cache_key=MTk0OTUyNTI3ODI4MTU1NDE3NA%3D%3D.3-ccb7-5&ccb=7-5&_nc_sid=58cdad&efg=eyJ2ZW5jb2RlX3RhZyI6IkZFRUQueHBpZHMuNTg0LnNkci5yZWd1bGFyX3Bob3RvLkMzIn0%3D&_nc_ohc=YFKQ7apkKBgQ7kNvwFPu0Kb&_nc_oc=AdpCt06dwZzFQWP2kuK7UAFMK0HuszeeTFaClp9t3JPyJWmjm73K0jYkykuO01tHcww&_nc_zt=23&_nc_ht=scontent-tpe5-1.cdninstagram.com&_nc_gid=xwo3Asg41MB0RjldQ8lgQA&_nc_ss=7360f&oh=00_AQO3J7DVx6YxxYqCZcy3W0xiufLg5WnZQJeoc7uz04uViQ&oe=6ABFE180";
@@ -117,6 +119,67 @@ test("a graph image whose image source is not a url yields no post", () => {
 
 test("an empty page yields no post", () => {
   expect(parseEmbed("")).toBeNull();
+});
+
+test("a cache miss loads the captioned embed once with the pinned user agent", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const calls: Array<{ input: string; init: RequestInit }> = [];
+  const fetcher: Fetcher = (input, init) => {
+    calls.push({ input, init });
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fakeCache().cache,
+    fetcher,
+  });
+  expect(post).toEqual({
+    username: "world_record_egg",
+    caption: EGG_CAPTION,
+    mediaUrl: EGG_MEDIA,
+  });
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.input).toBe("https://www.instagram.com/p/BsOGulcndj-/embed/captioned/");
+  const init = calls[0]?.init;
+  expect(init).toBeDefined();
+  expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+  expect(new Headers(init?.headers).get("user-agent")).toBe("Go-http-client/1.1");
+  expect(init?.redirect).toBe("manual");
+  expect(init?.signal instanceof AbortSignal).toBe(true);
+});
+
+test("a cache miss uses the global fetch when no fetcher is injected", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const fetchEmbed = (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch;
+  const spy = spyOn(globalThis, "fetch").mockImplementation(fetchEmbed);
+  try {
+    await instagramPost("BsOGulcndj-", {
+      origin: "https://bl.example",
+      cache: fakeCache().cache,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("https://www.instagram.com/p/BsOGulcndj-/embed/captioned/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("instagramPost miss-path timing (warning only, never fails)", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const samples: number[] = [];
+  for (let i = 0; i < 50; i++) {
+    const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+    const start = performance.now();
+    await instagramPost("BsOGulcndj-", {
+      origin: "https://bl.example",
+      cache: fakeCache().cache,
+      fetcher,
+    });
+    samples.push(performance.now() - start);
+  }
+  samples.sort((a, b) => a - b);
+  const median = (samples[24] + samples[25]) / 2;
+  if (median > 2) console.warn(`instagramPost miss-path median ${median} ms`);
 });
 
 test("saved embed fixtures do not contain session tokens", async () => {
