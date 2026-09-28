@@ -10,7 +10,7 @@ adr: null
 ---
 每個請求的 CPU 時間必須在 10ms 以內，subrequest 不超過 50 個。
 
-等待 `fetch()` 不算 CPU 時間，真正花 CPU 的是解析上游頁面，例如約 300KB 的 Instagram embed 頁。解析只取需要的欄位（`EmbeddedMediaImage` 或 `EmbeddedMediaVideo` 的 `src`、`UsernameText`、`Caption`、`hd_src`、`sd_src`），不建完整 DOM，也不在 Worker 裡處理圖片或影片。
+等待 `fetch()` 不算 CPU 時間，真正花 CPU 的是解析上游頁面，例如約 300KB 的 Instagram embed 頁。解析只取需要的欄位：Instagram 單圖取 `EmbeddedMediaImage` 的 `src`、`UsernameText`、`Caption`；影片和多圖取頁尾 `contextJSON`（約在 250KB 處，用 `indexOf` 定位後解碼）；Facebook 取 `hd_src`、`sd_src`。不建完整 DOM，也不在 Worker 裡處理圖片或影片。2026-09-28 部署實測，冷抓取加解析約 285KB 的 embed 頁 CPU 為 1–2 ms。
 
 限制來源是 https://developers.cloudflare.com/workers/platform/limits/ 。拼圖和影片代理因此不在範圍內；新功能若需要在 Worker 裡做影像處理或大量文字處理，要先寫 ADR 重新決定。
 
