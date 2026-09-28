@@ -17,7 +17,7 @@ function landingUrl(cleaned: URL): URL {
   landing.pathname = `/${match[1]}/${match[2]}/`;
   return landing;
 }
-const MEDIA_PATH = /^\/media\/([^/]+)\/1$/;
+const MEDIA_PATH = /^\/media\/([^/]+)\/([1-9]\d?)$/;
 
 function text(status: number, body: string): Response {
   return new Response(body, {
@@ -116,9 +116,11 @@ async function mediaRedirect(
   deps: { cache: () => PostCache },
 ): Promise<Response> {
   const match = MEDIA_PATH.exec(requestUrl.pathname);
-  if (match?.[1] === undefined || !isShortcode(match[1])) return text(404, "not found");
+  if (match?.[1] === undefined || match[2] === undefined || !isShortcode(match[1])) {
+    return text(404, "not found");
+  }
   const post = await loadPost(match[1], requestUrl.origin, deps);
-  const item = post?.media[0];
+  const item = post?.media[Number(match[2]) - 1];
   if (!post || item === undefined) return text(404, "not found");
   return new Response(null, {
     status: 302,

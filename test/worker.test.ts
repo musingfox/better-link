@@ -135,12 +135,17 @@ test("a media path is not a share link", async () => {
   expect((await call("https://bl.example/media/abc123")).status).toBe(404);
 });
 
-test("a media index other than 1 is not found", async () => {
-  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+test("a media index past a single image is not found", async () => {
+  const html = await Bun.file(new URL("./fixtures/instagram/embed-BsOGulcndj-.html", import.meta.url)).text();
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
   try {
-    const res = await call("https://bl.example/media/BsOGulcndj-/2");
+    const res = await callWorker(app, "https://bl.example/media/BsOGulcndj-/2");
     expect(res.status).toBe(404);
-    expect(spy).toHaveBeenCalledTimes(0);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("not found");
+    expect(res.headers.get("location")).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(1);
   } finally {
     spy.mockRestore();
   }
@@ -1304,4 +1309,123 @@ test("a reel video card matches the post card except for the reel landing url", 
   expect(reelBody).toContain('<meta property="og:video" content="https://bl.example/media/DJvkjAlvNc8/1">');
   const indexed = await page("https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/1");
   expect(indexed).toBe(reelBody);
+});
+
+test("a media url redirects to the requested carousel item", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const mediaUrl = parseEmbed(html)?.media[1]?.url;
+  if (mediaUrl === undefined) throw new Error("missing media url");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/DOBXTYNklfi/2");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(mediaUrl);
+    expect(new URL(mediaUrl).pathname).toBe(
+      "/v/t51.82787-15/539561490_18060504941366724_6446626545327929916_n.jpg",
+    );
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media url redirects to a video mp4", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/DJvkjAlvNc8/1");
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location.startsWith("https://scontent.cdninstagram.com/o1/v/t2/f2/m367/")).toBe(true);
+    expect(new URL(location).pathname.endsWith(".mp4")).toBe(true);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media url redirects to a carousel video", async () => {
+  const html = await instagramFixture("embed-DduKfFmDxsG.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/DduKfFmDxsG/2");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")?.startsWith("https://scontent.cdninstagram.com/o1/v/t16/f2/m84/")).toBe(true);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media index past the carousel is not found", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/DOBXTYNklfi/3");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("not found");
+    expect(res.headers.get("location")).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("media indexes outside the grammar are not found", async () => {
+  for (const path of ["/0", "/02", "/1/", "/100"]) {
+    const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+    try {
+      const res = await call(`https://bl.example/media/BsOGulcndj-${path}`);
+      expect(res.status).toBe(404);
+      expect(spy).toHaveBeenCalledTimes(0);
+    } finally {
+      spy.mockRestore();
+    }
+  }
+});
+
+test("a carousel media redirect does not forward caller credentials", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/DOBXTYNklfi/2", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+    expect(JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]])).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media redirect reuses the carousel preview cache", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const mediaUrl = parseEmbed(html)?.media[1]?.url;
+  if (mediaUrl === undefined) throw new Error("missing media url");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const preview = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2", {
+      "User-Agent": DISCORD,
+    });
+    expect(preview.status).toBe(200);
+    const res = await callWorker(app, "https://bl.example/media/DOBXTYNklfi/2");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(mediaUrl);
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
 });
