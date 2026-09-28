@@ -184,12 +184,20 @@ test("opening a converted share link lands on the cleaned original", async () =>
   expect(location).toBe(cleanUrl(new URL(original)).href);
 });
 
-test("a crawler user agent still gets the cleaned redirect", async () => {
-  const res = await call("https://bl.example/www.instagram.com/p/ABC/", {
-    "User-Agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)",
-  });
-  expect(res.status).toBe(302);
-  expect(res.headers.get("location")).toBe("https://www.instagram.com/p/ABC/");
+test("a discord crawler on an instagram post is sent back when fetch fails", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/ABC/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/ABC/");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 test("the host segment is matched case-insensitively", async () => {
