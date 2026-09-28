@@ -117,7 +117,7 @@ function isMedia(value: unknown): value is Media {
   const record = value as Record<string, unknown>;
   if (record.kind === "image") return typeof record.url === "string";
   if (record.kind === "video") {
-    return typeof record.url === "string" && typeof record.width === "number" && typeof record.height === "number";
+    return typeof record.url === "string" && positiveInteger(record.width) && positiveInteger(record.height);
   }
   return false;
 }

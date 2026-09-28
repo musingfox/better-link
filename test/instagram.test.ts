@@ -386,15 +386,46 @@ test("a cached body that is not json yields no post and does not fetch", async (
   expect(calls).toHaveLength(0);
 });
 
+test("a cached video post is returned without contacting instagram", async () => {
+  const stored = {
+    username: "u",
+    caption: "",
+    media: [{ kind: "video" as const, url: "https://scontent.cdninstagram.com/o1/v.mp4?oe=1", width: 720, height: 1280 }],
+  };
+  const fake = fakeCache();
+  fake.entries.set("https://bl.example/__cache/instagram/v2/BsOGulcndj-", new Response(JSON.stringify(stored)));
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 500 }));
+  };
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher,
+  });
+  expect(post).toEqual(stored);
+  expect(calls).toHaveLength(0);
+});
+
 test("a cached body that is not a post yields no post and does not fetch", async () => {
+  const image = { kind: "image", url: "https://scontent.cdninstagram.com/v/c.jpg" };
   const bodies: unknown[] = [
     {},
-    { username: 1, caption: "", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
-    { username: "u", caption: null, mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
-    { username: "u", caption: "", mediaUrl: 1 },
-    { caption: "", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
-    { username: "u", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
-    { username: "u", caption: "" },
+    { username: 1, caption: "", media: [image] },
+    { username: "u", caption: null, media: [image] },
+    { username: "u", caption: "", media: [] },
+    { username: "u", caption: "", media: "x" },
+    { username: "u", caption: "", media: [null] },
+    { username: "u", caption: "", media: [{ kind: "gif", url: "https://scontent.cdninstagram.com/a" }] },
+    { username: "u", caption: "", media: [{ kind: "image", url: 1 }] },
+    { username: "u", caption: "", media: [{ kind: "video", url: "https://scontent.cdninstagram.com/v.mp4" }] },
+    {
+      username: "u",
+      caption: "",
+      media: [{ kind: "video", url: "https://scontent.cdninstagram.com/v.mp4", width: 0, height: 1280 }],
+    },
+    { username: "u", caption: "", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
   ];
   for (const body of bodies) {
     const fake = fakeCache();
