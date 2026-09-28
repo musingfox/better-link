@@ -173,14 +173,97 @@ export async function instagramPost(
   }
 }
 
+function positiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function readContext(html: string): unknown {
+  const key = '"contextJSON":';
+  const at = html.indexOf(key);
+  if (at < 0) return null;
+  const jsonString = /"(?:[^"\\]|\\.)*"/y;
+  jsonString.lastIndex = at + key.length;
+  const match = jsonString.exec(html);
+  if (match === null) return null;
+  const decoded: unknown = JSON.parse(match[0]);
+  if (typeof decoded !== "string") return null;
+  return JSON.parse(decoded);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null) return null;
+  return value as Record<string, unknown>;
+}
+
+function shortcodeMedia(context: unknown): Record<string, unknown> | null {
+  const root = asRecord(context);
+  const gql = asRecord(root?.gql_data);
+  return asRecord(gql?.shortcode_media);
+}
+
+function imageItem(raw: unknown): Media | null {
+  if (typeof raw !== "string") return null;
+  const url = cdnUrl(raw);
+  if (url === null) return null;
+  return { kind: "image", url };
+}
+
+function videoItem(node: Record<string, unknown>): Media | null {
+  if (typeof node.video_url !== "string") return null;
+  const url = cdnUrl(node.video_url);
+  if (url === null) return null;
+  const dimensions = asRecord(node.dimensions);
+  if (dimensions === null) return null;
+  if (!positiveInteger(dimensions.width) || !positiveInteger(dimensions.height)) return null;
+  return { kind: "video", url, width: dimensions.width, height: dimensions.height };
+}
+
+function itemFromNode(node: unknown): Media | null {
+  const record = asRecord(node);
+  if (record === null) return null;
+  if (record.is_video === true) return videoItem(record);
+  return imageItem(record.display_url);
+}
+
+function richItems(type: string, context: unknown): Media[] | null {
+  const media = shortcodeMedia(context);
+  if (media === null) return null;
+  if (type === "GraphVideo") {
+    // The page type already says this node is a video. A missing is_video flag
+    // must not fall through to display_url.
+    const item = videoItem(media);
+    return item === null ? null : [item];
+  }
+  const edge = asRecord(media.edge_sidecar_to_children);
+  const edges = edge?.edges;
+  if (!Array.isArray(edges) || edges.length === 0) return null;
+  const items: Media[] = [];
+  for (const edgeNode of edges) {
+    const item = itemFromNode(asRecord(edgeNode)?.node);
+    if (item === null) return null;
+    items.push(item);
+  }
+  return items;
+}
+
 export function parseEmbed(html: string): Post | null {
   try {
-    if (mediaType(html) !== "GraphImage") return null;
+    if (html.includes("WatchOnInstagram")) return null;
+    const type = mediaType(html);
     const username = usernameOf(html);
     if (!username) return null;
-    const mediaUrl = mediaUrlOf(html);
-    if (mediaUrl === null) return null;
-    return { username, caption: captionOf(html), media: [{ kind: "image", url: mediaUrl }] };
+    if (type === "GraphImage") {
+      const mediaUrl = mediaUrlOf(html);
+      if (mediaUrl === null) return null;
+      return { username, caption: captionOf(html), media: [{ kind: "image", url: mediaUrl }] };
+    }
+    if (type !== "GraphVideo") return null;
+    const context = readContext(html);
+    if (context === null) return null;
+    if (asRecord(asRecord(context)?.context)?.copyright_blocked === true) return null;
+    const media = richItems(type, context);
+    if (media === null) return null;
+    return { username, caption: captionOf(html), media };
   } catch {
     return null;
   }

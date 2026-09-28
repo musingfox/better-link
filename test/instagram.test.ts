@@ -101,8 +101,81 @@ test("a carousel embed is not a single image", async () => {
   expect(parseEmbed(await fixture("embed-DOBXTYNklfi.html"))).toBeNull();
 });
 
-test("a video embed is not a single image", async () => {
-  expect(parseEmbed(await fixture("embed-DJvkjAlvNc8.html"))).toBeNull();
+test("a video embed yields the playable mp4 on the cdninstagram host", async () => {
+  const post = parseEmbed(await fixture("embed-DJvkjAlvNc8.html"));
+  expect(post?.username).toBe("vatsalya_therapy");
+  expect(post?.media).toHaveLength(1);
+  const item = post?.media[0];
+  if (item?.kind !== "video") throw new Error("expected a video");
+  expect(item.width).toBe(720);
+  expect(item.height).toBe(1280);
+  expect(item.url.startsWith(
+    "https://scontent.cdninstagram.com/o1/v/t2/f2/m367/AQOgx5mbS2I8BPywB5cH4FVx-87QdiLP1zNs6L4p27pATA6tpTJF-IFswalL60VtuI0ml5MNBJ0JdzYONRnOwiXgH6bmFAhkcGaHEpA.mp4?",
+  )).toBe(true);
+  expect(item.url).toContain("oe=");
+  expect(item.url).not.toContain("\\");
+  expect(item.url).not.toContain("\\u0025");
+  expect(item.url).not.toContain("&amp;");
+  expect(post?.caption.length).toBeGreaterThan(0);
+});
+
+function richPage(type: string, node: unknown): string {
+  const context = {
+    context: { copyright_blocked: false },
+    gql_data: { shortcode_media: node },
+  };
+  const literal = JSON.stringify(JSON.stringify(context));
+  return `<div data-media-type="${type}"><span class="UsernameText">u</span><script>{"contextJSON":${literal}}</script></div>`;
+}
+
+test("a video url is rebuilt without userinfo, port, or the original host", () => {
+  const post = parseEmbed(
+    richPage("GraphVideo", {
+      is_video: true,
+      video_url: "https://user:pw@evil.example:8443/v.mp4?x=1&y=2",
+      dimensions: { width: 720, height: 1280 },
+    }),
+  );
+  expect(post).toEqual({
+    username: "u",
+    caption: "",
+    media: [
+      {
+        kind: "video",
+        url: "https://scontent.cdninstagram.com/v.mp4?x=1&y=2",
+        width: 720,
+        height: 1280,
+      },
+    ],
+  });
+});
+
+test("a graph video without an is_video flag still uses video_url", () => {
+  const post = parseEmbed(
+    richPage("GraphVideo", {
+      video_url: "https://scontent.cdninstagram.com/v.mp4",
+      dimensions: { width: 720, height: 1280 },
+      display_url: "https://scontent.cdninstagram.com/c.jpg",
+    }),
+  );
+  expect(post?.media).toEqual([
+    {
+      kind: "video",
+      url: "https://scontent.cdninstagram.com/v.mp4",
+      width: 720,
+      height: 1280,
+    },
+  ]);
+});
+
+test("a graph video without a video url yields no post even when a display image exists", () => {
+  expect(
+    parseEmbed(
+      richPage("GraphVideo", {
+        display_url: "https://scontent.cdninstagram.com/c.jpg",
+      }),
+    ),
+  ).toBeNull();
 });
 
 test("a broken embed page yields no post", async () => {
