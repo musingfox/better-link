@@ -7,6 +7,7 @@ import { renderOgPage } from "./og";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 const POST_PATH = /^\/p\/([^/]+)\/?$/;
+const MEDIA_PATH = /^\/media\/([^/]+)\/1$/;
 
 function text(status: number, body: string): Response {
   return new Response(body, {
@@ -92,6 +93,28 @@ async function shareRedirect(
   return Response.redirect((fixed ?? cleaned).href, 302);
 }
 
+async function mediaRedirect(
+  requestUrl: URL,
+  deps: { cache: () => PostCache },
+): Promise<Response> {
+  const match = MEDIA_PATH.exec(requestUrl.pathname);
+  if (match?.[1] === undefined || !isShortcode(match[1])) return text(404, "not found");
+  let post: Post | null = null;
+  try {
+    post = await instagramPost(match[1], {
+      origin: requestUrl.origin,
+      cache: deps.cache(),
+    });
+  } catch {
+    post = null;
+  }
+  if (!post) return text(404, "not found");
+  return new Response(null, {
+    status: 302,
+    headers: { Location: post.mediaUrl, "Cache-Control": "no-store" },
+  });
+}
+
 export function createWorker(deps: { cache: () => PostCache }): {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response>;
 } {
@@ -99,6 +122,7 @@ export function createWorker(deps: { cache: () => PostCache }): {
     async fetch(request, _env, _ctx) {
       const url = new URL(request.url);
       if (url.pathname === "/") return convert(url);
+      if (url.pathname.startsWith("/media/")) return mediaRedirect(url, deps);
       return shareRedirect(url, request.headers.get("User-Agent"), deps);
     },
   };

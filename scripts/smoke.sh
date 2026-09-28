@@ -118,6 +118,26 @@ expect_has() {
     echo "actual: $got"
     fail=$((fail + 1))
   fi
+  if [ -n "${8:-}" ]; then
+    local extra
+    extra=$(header_value "$hdr" "${8}")
+    if [ "${9}" = "prefix" ]; then
+      case "$extra" in
+        "${10}"*) ;;
+        *)
+          echo "header ${8} prefix mismatch for $url"
+          echo "expected prefix: ${10}"
+          echo "actual: $extra"
+          fail=$((fail + 1))
+          ;;
+      esac
+    elif [ "$extra" != "${10}" ]; then
+      echo "header ${8} mismatch for $url"
+      echo "expected: ${10}"
+      echo "actual: $extra"
+      fail=$((fail + 1))
+    fi
+  fi
   if [ "$body_sub" != "-" ] && ! grep -F -q -- "$body_sub" "$body"; then
     echo "body substring missing for $url"
     echo "expected: $body_sub"
@@ -181,6 +201,18 @@ expect_has \
   'text/html; charset=utf-8' \
   '<meta property="og:image" content="http://127.0.0.1:8799/media/BsOGulcndj-/1">' \
   'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
+
+expect_has \
+  'http://127.0.0.1:8799/media/BsOGulcndj-/1' \
+  302 \
+  location \
+  prefix \
+  'https://scontent.cdninstagram.com/' \
+  - \
+  'Mozilla/5.0' \
+  cache-control \
+  exact \
+  'no-store'
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

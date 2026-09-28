@@ -1,5 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
 import { createWorker } from "../src/index";
+import { parseEmbed } from "../src/instagram";
 import { fakeCache } from "./support/fake-cache";
 
 const DISCORD = "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)";
@@ -104,6 +105,48 @@ test("a post with no caption renders an empty og description", async () => {
     });
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('<meta property="og:description" content="">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media url redirects to the current signed cdn url", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const mediaUrl = parseEmbed(html)?.mediaUrl;
+  if (mediaUrl === undefined) throw new Error("missing media url");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => htmlResponse(html)) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, "https://bl.example/media/BsOGulcndj-/1");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(mediaUrl);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("https://www.instagram.com/p/BsOGulcndj-/embed/captioned/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media redirect reuses the post cached for the preview", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const mediaUrl = parseEmbed(html)?.mediaUrl;
+  if (mediaUrl === undefined) throw new Error("missing media url");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => htmlResponse(html)) as unknown as typeof fetch,
+  );
+  try {
+    await call(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/", {
+      "User-Agent": DISCORD,
+    });
+    const res = await call(app, "https://bl.example/media/BsOGulcndj-/1");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(mediaUrl);
+    expect(spy).toHaveBeenCalledTimes(1);
   } finally {
     spy.mockRestore();
   }
