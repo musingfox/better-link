@@ -103,6 +103,13 @@ export async function instagramPost(
   deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
 ): Promise<Post | null> {
   const fetcher = deps.fetcher ?? ((input, init) => fetch(input, init));
+  const key = `${deps.origin}/__cache/instagram/${shortcode}`;
+  try {
+    const hit = await deps.cache.match(key);
+    if (hit) return (await hit.json()) as Post;
+  } catch {
+    return null;
+  }
   const response = await fetcher(`https://www.instagram.com/p/${shortcode}/embed/captioned/`, {
     headers: { "User-Agent": EMBED_UA },
     redirect: "manual",

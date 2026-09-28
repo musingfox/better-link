@@ -164,6 +164,49 @@ test("a cache miss uses the global fetch when no fetcher is injected", async () 
   }
 });
 
+test("a cached post is returned without contacting instagram", async () => {
+  const stored = {
+    username: "cached_user",
+    caption: "",
+    mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg?oe=1",
+  };
+  const fake = fakeCache();
+  fake.entries.set(
+    "https://bl.example/__cache/instagram/BsOGulcndj-",
+    new Response(JSON.stringify(stored)),
+  );
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 500 }));
+  };
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher,
+  });
+  expect(post).toEqual(stored);
+  expect(calls).toHaveLength(0);
+  expect(fake.calls.put).toBe(0);
+});
+
+test("a cached body that is not json yields no post and does not fetch", async () => {
+  const fake = fakeCache();
+  fake.entries.set("https://bl.example/__cache/instagram/BsOGulcndj-", new Response("not json"));
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 200 }));
+  };
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher,
+  });
+  expect(post).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
 test("instagramPost miss-path timing (warning only, never fails)", async () => {
   const html = await fixture("embed-BsOGulcndj-.html");
   const samples: number[] = [];
