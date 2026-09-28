@@ -724,16 +724,16 @@ test("an instagram post with no user agent does not fetch or touch the cache", a
   }
 });
 
-test("a discord crawler on an instagram reel does not fetch or touch the cache", async () => {
+test("a discord crawler on an instagram reels path does not fetch or touch the cache", async () => {
   const fake = fakeCache();
   const app = createWorker({ cache: () => fake.cache });
   const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
   try {
-    const res = await callWorker(app, "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/", {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/reels/DJvkjAlvNc8/", {
       "User-Agent": DISCORD,
     });
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://www.instagram.com/reel/DJvkjAlvNc8/");
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/reels/DJvkjAlvNc8/");
     expect(spy).toHaveBeenCalledTimes(0);
     expect(fake.calls.match).toBe(0);
     expect(fake.calls.put).toBe(0);
@@ -967,5 +967,217 @@ test("caller credentials are not written to the console", async () => {
     infos.mockRestore();
     warns.mockRestore();
     errors.mockRestore();
+  }
+});
+
+function instagramFixture(name: string): Promise<string> {
+  return Bun.file(new URL(`./fixtures/instagram/${name}`, import.meta.url)).text();
+}
+
+test("a crawler preview of carousel item 2 points at that item", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:image" content="https://bl.example/media/DOBXTYNklfi/2">');
+    expect(body).toContain('<meta name="twitter:image" content="https://bl.example/media/DOBXTYNklfi/2">');
+    expect(body).toContain('<meta property="og:url" content="https://www.instagram.com/p/DOBXTYNklfi/">');
+    expect(body).toContain('<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/DOBXTYNklfi/">');
+    expect(body).toContain('<a href="https://www.instagram.com/p/DOBXTYNklfi/">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler preview without an item number uses the first item", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:image" content="https://bl.example/media/DOBXTYNklfi/1">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a trailing slash on an item path still selects that item", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2/", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:image" content="https://bl.example/media/DOBXTYNklfi/2">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler asking for a missing egg item is sent to the post", async () => {
+  const html = await instagramFixture("embed-BsOGulcndj-.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/2", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/BsOGulcndj-/");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("item numbers outside the grammar are not post paths", async () => {
+  for (const suffix of ["/0", "/02", "/100"]) {
+    const fake = fakeCache();
+    const app = createWorker({ cache: () => fake.cache });
+    const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+    try {
+      const res = await callWorker(app, `https://bl.example/www.instagram.com/p/DOBXTYNklfi${suffix}`, {
+        "User-Agent": DISCORD,
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe(`https://www.instagram.com/p/DOBXTYNklfi${suffix}`);
+      expect(spy).toHaveBeenCalledTimes(0);
+      expect(fake.calls.match).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  }
+});
+
+test("a carousel item preview does not forward caller credentials", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const upstream = JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]]);
+    expect(upstream).not.toContain("s3cr3t");
+    expect(upstream).not.toContain(DISCORD);
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+    expect(trace).not.toContain(DISCORD);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a reel preview fetches the post embed and shares the post cache", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const reel = await callWorker(app, "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+    });
+    expect(reel.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("https://www.instagram.com/p/DJvkjAlvNc8/embed/captioned/");
+    const post = await callWorker(app, "https://bl.example/www.instagram.com/p/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+    });
+    expect(post.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(fake.entries.size).toBe(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a reel item past the end is sent to the reel", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/2", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/reel/DJvkjAlvNc8/");
+    expect(await res.text()).toBe("");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("reel item numbers outside the grammar are not post paths", async () => {
+  for (const suffix of ["/0", "/02", "/100"]) {
+    const fake = fakeCache();
+    const app = createWorker({ cache: () => fake.cache });
+    const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+    try {
+      const res = await callWorker(app, `https://bl.example/www.instagram.com/reel/DJvkjAlvNc8${suffix}`, {
+        "User-Agent": DISCORD,
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe(`https://www.instagram.com/reel/DJvkjAlvNc8${suffix}`);
+      expect(spy).toHaveBeenCalledTimes(0);
+      expect(fake.calls.match).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  }
+});
+
+test("a reel item preview uses the reel landing url and that item", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/reel/DOBXTYNklfi/2", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:image" content="https://bl.example/media/DOBXTYNklfi/2">');
+    expect(body).toContain('<meta property="og:url" content="https://www.instagram.com/reel/DOBXTYNklfi/">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a reel preview does not forward caller credentials", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const upstream = JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]]);
+    expect(upstream).not.toContain("s3cr3t");
+    expect(upstream).not.toContain(DISCORD);
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+    expect(trace).not.toContain(DISCORD);
+  } finally {
+    spy.mockRestore();
   }
 });

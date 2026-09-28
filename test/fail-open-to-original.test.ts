@@ -115,7 +115,7 @@ test("a crawler is redirected when the embed video is blocked", async () => {
 test("a crawler on an instagram item link is sent to the post when fetch fails", async () => {
   await expectOpen(
     () => Promise.reject(new TypeError("fetch failed")),
-    0,
+    1,
     "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2",
     "https://www.instagram.com/p/DOBXTYNklfi/",
   );
@@ -124,7 +124,7 @@ test("a crawler on an instagram item link is sent to the post when fetch fails",
 test("a crawler on a reel item link is sent to the reel when fetch fails", async () => {
   await expectOpen(
     () => Promise.reject(new TypeError("fetch failed")),
-    0,
+    1,
     "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/2",
     "https://www.instagram.com/reel/DJvkjAlvNc8/",
   );
@@ -133,8 +133,29 @@ test("a crawler on a reel item link is sent to the reel when fetch fails", async
 test("a crawler on a reel is sent to that reel when fetch fails", async () => {
   await expectOpen(
     () => Promise.reject(new TypeError("fetch failed")),
-    0,
+    1,
     "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8",
     "https://www.instagram.com/reel/DJvkjAlvNc8",
   );
+});
+
+test("a crawler asking for a missing carousel item is sent to the post", async () => {
+  const html = await fixture("embed-DOBXTYNklfi.html");
+  await expectOpen(
+    () => Promise.resolve(new Response(html, { status: 200 })),
+    1,
+    "https://bl.example/www.instagram.com/p/DOBXTYNklfi/3?igsh=x",
+    "https://www.instagram.com/p/DOBXTYNklfi/",
+  );
+});
+
+test("a crawler on a blocked reel is sent to the reel", async () => {
+  const html = await fixture("embed-Dd0M_ifNfXO.html");
+  const fake = await expectOpen(
+    () => Promise.resolve(new Response(html, { status: 200 })),
+    1,
+    "https://bl.example/www.instagram.com/reel/Dd0M_ifNfXO/?igsh=x",
+    "https://www.instagram.com/reel/Dd0M_ifNfXO/",
+  );
+  expect(fake.entries.size).toBe(0);
 });

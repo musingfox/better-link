@@ -6,7 +6,7 @@ import { instagramPost, isShortcode, type Post, type PostCache } from "./instagr
 import { renderOgPage } from "./og";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
-const POST_PATH = /^\/p\/([^/]+)\/?$/;
+const POST_PATH = /^\/(p|reel)\/([^/]+)(?:\/([1-9]\d?))?\/?$/;
 const ITEM_SUFFIX = /^\/(p|reel)\/([^/]+)\/([1-9]\d?)\/?$/;
 
 function landingUrl(cleaned: URL): URL {
@@ -40,10 +40,6 @@ async function convert(requestUrl: URL): Promise<Response> {
   return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
-function previewImage(origin: string, shortcode: string): string {
-  return `${origin}/media/${shortcode}/1`;
-}
-
 async function loadPost(
   shortcode: string,
   origin: string,
@@ -61,18 +57,20 @@ async function loadPost(
 
 async function instagramOg(
   requestUrl: URL,
-  cleaned: URL,
+  landing: URL,
   shortcode: string,
+  index: number,
   deps: { cache: () => PostCache },
 ): Promise<Response> {
   const post = await loadPost(shortcode, requestUrl.origin, deps);
-  if (!post) return Response.redirect(cleaned.href, 302);
+  const item = post?.media[index - 1];
+  if (!post || item === undefined) return Response.redirect(landing.href, 302);
   return new Response(
     renderOgPage({
       title: `@${post.username}`,
       description: post.caption,
-      image: previewImage(requestUrl.origin, shortcode),
-      url: cleaned.href,
+      image: `${requestUrl.origin}/media/${shortcode}/${index}`,
+      url: landing.href,
     }),
     { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
   );
@@ -102,10 +100,11 @@ async function shareRedirect(
   if (
     isCrawler(userAgent) &&
     INSTAGRAM_HOSTS.has(cleaned.hostname) &&
-    postMatch?.[1] !== undefined &&
-    isShortcode(postMatch[1])
+    postMatch?.[2] !== undefined &&
+    isShortcode(postMatch[2])
   ) {
-    return instagramOg(requestUrl, landing, postMatch[1], deps);
+    const index = postMatch[3] === undefined ? 1 : Number(postMatch[3]);
+    return instagramOg(requestUrl, landing, postMatch[2], index, deps);
   }
   const fixed = isCrawler(userAgent) ? fixServiceUrl(cleaned) : null;
   return Response.redirect((fixed ?? landing).href, 302);
