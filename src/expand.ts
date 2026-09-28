@@ -1,10 +1,21 @@
+import { INSTAGRAM_HOSTS } from "./clean";
+
 export type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
 
 const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "m.facebook.com"]);
-const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
 
 const SHARE_PATH = /^\/share\/[^/]+/;
 const HOP_CAP = 3;
+
+export function isShareable(url: URL): boolean {
+  return (
+    (url.protocol === "http:" || url.protocol === "https:") &&
+    url.username === "" &&
+    url.password === "" &&
+    url.port === "" &&
+    url.hostname.includes(".")
+  );
+}
 
 function platform(hostname: string): "facebook" | "instagram" | null {
   if (FACEBOOK_HOSTS.has(hostname)) return "facebook";
@@ -13,13 +24,11 @@ function platform(hostname: string): "facebook" | "instagram" | null {
 }
 
 function isShareLink(url: URL): boolean {
-  return (
-    (url.protocol === "http:" || url.protocol === "https:") &&
-    url.username === "" &&
-    url.password === "" &&
-    platform(url.hostname) !== null &&
-    SHARE_PATH.test(url.pathname)
-  );
+  // Probes accept an explicit port and then drop it. isShareable rejects ports,
+  // matching the conversion check, so clear the port only for this predicate.
+  const candidate = url.port === "" ? url : new URL(url.href);
+  if (candidate !== url) candidate.port = "";
+  return isShareable(candidate) && platform(url.hostname) !== null && SHARE_PATH.test(url.pathname);
 }
 
 function probe(t: URL): URL {
@@ -32,10 +41,8 @@ function blockedDestination(pathname: string): boolean {
 
 function trustedLocation(from: URL, next: URL): boolean {
   return (
+    isShareable(next) &&
     next.protocol === "https:" &&
-    next.username === "" &&
-    next.password === "" &&
-    next.port === "" &&
     platform(next.hostname) === platform(from.hostname) &&
     !blockedDestination(next.pathname)
   );

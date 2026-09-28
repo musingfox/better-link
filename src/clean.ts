@@ -1,4 +1,4 @@
-const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
+export const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
 const YOUTUBE_HOSTS = new Set([
   "youtube.com",
   "www.youtube.com",
