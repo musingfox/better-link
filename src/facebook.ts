@@ -27,8 +27,47 @@ function tagEnd(html: string, at: number): number {
 }
 
 function attr(tag: string, name: string): string | null {
-  const match = new RegExp(`${name}="([^"]*)"`).exec(tag);
-  return match?.[1] ?? null;
+  let i = 0;
+  while (i < tag.length && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") {
+    i += 1;
+  }
+  while (i < tag.length) {
+    while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r" || tag[i] === "/")) {
+      i += 1;
+    }
+    if (i >= tag.length || tag[i] === ">") return null;
+    const nameStart = i;
+    while (
+      i < tag.length &&
+      tag[i] !== "=" &&
+      tag[i] !== " " &&
+      tag[i] !== "\t" &&
+      tag[i] !== "\n" &&
+      tag[i] !== "\r" &&
+      tag[i] !== ">" &&
+      tag[i] !== "/"
+    ) {
+      i += 1;
+    }
+    const found = tag.slice(nameStart, i);
+    while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
+    if (i >= tag.length || tag[i] !== "=") continue;
+    i += 1;
+    while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
+    if (i >= tag.length || tag[i] !== '"') {
+      while (i < tag.length && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") {
+        i += 1;
+      }
+      continue;
+    }
+    i += 1;
+    const valueStart = i;
+    const valueEnd = tag.indexOf('"', i);
+    if (valueEnd < 0) return null;
+    if (found === name) return tag.slice(valueStart, valueEnd);
+    i = valueEnd + 1;
+  }
+  return null;
 }
 
 function authorName(html: string): string | null {
