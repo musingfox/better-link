@@ -11,6 +11,10 @@ const MANNY_PLUGIN =
   "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
 const STORY_PLUGIN =
   "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fstory.php%3Fstory_fbid%3D1%26id%3D2";
+const MANNY_KEY =
+  "https://bl.example/__cache/facebook/v1/www.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const STORY_KEY =
+  "https://bl.example/__cache/facebook/v1/www.facebook.com%2Fstory.php%3Fstory_fbid%3D1%26id%3D2";
 
 test("a pfbid post url is a facebook post", () => {
   expect(isFacebookPostUrl(new URL(MANNY))).toBe(true);
@@ -430,4 +434,98 @@ test("facebookPost miss-path timing (warning only, never fails)", async () => {
     const median = (samples[24] + samples[25]) / 2;
     if (median > 2) console.warn(`facebookPost miss-path median ${name} ${median} ms`);
   }
+});
+
+test("a parsed post is stored for a day", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const fake = fakeCache();
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  const post = await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fake.cache, fetcher });
+  expect([...fake.entries.keys()]).toEqual([MANNY_KEY]);
+  const stored = fake.entries.get(MANNY_KEY);
+  expect(stored?.headers.get("cache-control")).toBe("max-age=86400");
+  expect(stored?.headers.get("content-type")).toBe("application/json");
+  if (!stored) throw new Error("missing cache entry");
+  const body: unknown = await stored.json();
+  expect(body).toEqual(post);
+  expect(fake.calls.put).toBe(1);
+});
+
+test("a story cache key encodes the query", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const fake = fakeCache();
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  await facebookPost(new URL(STORY), { origin: "https://bl.example", cache: fake.cache, fetcher });
+  expect([...fake.entries.keys()]).toEqual([STORY_KEY]);
+  expect(STORY_KEY).not.toContain("?");
+});
+
+test("a cached post is returned without contacting facebook", async () => {
+  const stored = {
+    username: "cached",
+    caption: "",
+    media: [{ kind: "image" as const, url: "https://scontent.xx.fbcdn.net/v/t39.30808-6/c.jpg?oe=1" }],
+  };
+  const fake = fakeCache();
+  fake.entries.set(MANNY_KEY, new Response(JSON.stringify(stored)));
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 500 }));
+  };
+  const post = await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fake.cache, fetcher });
+  expect(post).toEqual(stored);
+  expect(calls).toHaveLength(0);
+  expect(fake.calls.put).toBe(0);
+});
+
+test("a cache hit that is not json yields no post", async () => {
+  const fake = fakeCache();
+  fake.entries.set(MANNY_KEY, new Response("not json"));
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 200 }));
+  };
+  expect(await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
+test("a cache hit without media yields no post", async () => {
+  const fake = fakeCache();
+  fake.entries.set(MANNY_KEY, new Response(JSON.stringify({ username: "x", caption: "", media: [] })));
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 200 }));
+  };
+  expect(await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
+test("a cache read failure yields no post", async () => {
+  const fake = fakeCache();
+  fake.cache.match = () => Promise.reject(new Error("cache down"));
+  expect(await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fake.cache })).toBeNull();
+});
+
+test("a cache write failure still returns the post", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const fake = fakeCache();
+  fake.cache.put = () => Promise.reject(new Error("413"));
+  const post = await facebookPost(new URL(MANNY), {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher: () => Promise.resolve(new Response(html, { status: 200 })),
+  });
+  expect(post).toEqual(parsePostPage(html));
+  expect(post).not.toBeNull();
+});
+
+test("an unavailable page is not cached", async () => {
+  const html = await fixture("unavailable.zh-Hant.html");
+  const fake = fakeCache();
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  expect(await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+  expect(fake.entries.size).toBe(0);
 });
