@@ -111,3 +111,30 @@ test("a crawler is redirected when the embed video is blocked", async () => {
   const fake = await expectOpen(() => Promise.resolve(new Response(html, { status: 200 })), 1);
   expect(fake.entries.size).toBe(0);
 });
+
+test("a crawler on an instagram item link is sent to the post when fetch fails", async () => {
+  await expectOpen(
+    () => Promise.reject(new TypeError("fetch failed")),
+    0,
+    "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2",
+    "https://www.instagram.com/p/DOBXTYNklfi/",
+  );
+});
+
+test("a crawler on a reel item link is sent to the reel when fetch fails", async () => {
+  await expectOpen(
+    () => Promise.reject(new TypeError("fetch failed")),
+    0,
+    "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/2",
+    "https://www.instagram.com/reel/DJvkjAlvNc8/",
+  );
+});
+
+test("a crawler on a reel is sent to that reel when fetch fails", async () => {
+  await expectOpen(
+    () => Promise.reject(new TypeError("fetch failed")),
+    0,
+    "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8",
+    "https://www.instagram.com/reel/DJvkjAlvNc8",
+  );
+});

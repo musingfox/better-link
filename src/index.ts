@@ -7,6 +7,16 @@ import { renderOgPage } from "./og";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 const POST_PATH = /^\/p\/([^/]+)\/?$/;
+const ITEM_SUFFIX = /^\/(p|reel)\/([^/]+)\/([1-9]\d?)\/?$/;
+
+function landingUrl(cleaned: URL): URL {
+  if (!INSTAGRAM_HOSTS.has(cleaned.hostname)) return cleaned;
+  const match = ITEM_SUFFIX.exec(cleaned.pathname);
+  if (match?.[1] === undefined || match[2] === undefined) return cleaned;
+  const landing = new URL(cleaned.href);
+  landing.pathname = `/${match[1]}/${match[2]}/`;
+  return landing;
+}
 const MEDIA_PATH = /^\/media\/([^/]+)\/1$/;
 
 function text(status: number, body: string): Response {
@@ -87,6 +97,7 @@ async function shareRedirect(
     return text(404, "not found");
   }
   const cleaned = cleanUrl(candidate);
+  const landing = landingUrl(cleaned);
   const postMatch = POST_PATH.exec(cleaned.pathname);
   if (
     isCrawler(userAgent) &&
@@ -94,10 +105,10 @@ async function shareRedirect(
     postMatch?.[1] !== undefined &&
     isShortcode(postMatch[1])
   ) {
-    return instagramOg(requestUrl, cleaned, postMatch[1], deps);
+    return instagramOg(requestUrl, landing, postMatch[1], deps);
   }
   const fixed = isCrawler(userAgent) ? fixServiceUrl(cleaned) : null;
-  return Response.redirect((fixed ?? cleaned).href, 302);
+  return Response.redirect((fixed ?? landing).href, 302);
 }
 
 async function mediaRedirect(

@@ -742,6 +742,94 @@ test("a discord crawler on an instagram reel does not fetch or touch the cache",
   }
 });
 
+test("a browser following an instagram item link lands on the post", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2?igsh=x", {
+      "User-Agent": CHROME,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/DOBXTYNklfi/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a browser keeps img_index when dropping an instagram item number", async () => {
+  const res = await call("https://bl.example/instagram.com/p/ABC/2?img_index=3&igsh=x", {
+    "User-Agent": CHROME,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://instagram.com/p/ABC/?img_index=3");
+});
+
+test("converting an instagram item link keeps the item number", async () => {
+  const res = await call("https://bl.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F2");
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe("https://bl.example/www.instagram.com/p/ABC/2");
+});
+
+test("a non-instagram item path keeps its number", async () => {
+  const res = await call("https://bl.example/example.com/p/x/2", { "User-Agent": CHROME });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://example.com/p/x/2");
+});
+
+test("an instagram item number of zero stays on the path", async () => {
+  const res = await call("https://bl.example/www.instagram.com/p/ABC/0", { "User-Agent": CHROME });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.instagram.com/p/ABC/0");
+});
+
+test("a browser following a reel item link lands on the reel", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/2?igsh=x", {
+      "User-Agent": CHROME,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/reel/DJvkjAlvNc8/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a browser on a reel keeps the cleaned reel url", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(
+      app,
+      "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/?igsh=QkFfQVp3Q3ZnTw%3D%3D",
+      { "User-Agent": CHROME },
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/reel/DJvkjAlvNc8/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a browser on a reel without a trailing slash does not gain one", async () => {
+  const res = await call("https://bl.example/www.instagram.com/reel/DJvkjAlvNc8", { "User-Agent": CHROME });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.instagram.com/reel/DJvkjAlvNc8");
+});
+
 test("a discord crawler on an instagram profile does not fetch", async () => {
   const fake = fakeCache();
   const app = createWorker({ cache: () => fake.cache });
