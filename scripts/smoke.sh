@@ -90,6 +90,41 @@ expect_resp() {
   fi
 }
 
+expect_has() {
+  local url="$1" want_status="$2" header_name="$3" header_mode="$4" header_want="$5" body_sub="$6" ua="$7"
+  local hdr="$tmp/hdr" body="$tmp/body" got status
+  curl -s -D "$hdr" -o "$body" -A "$ua" "$url" || true
+  status=$(awk 'NR==1 { print $2 }' "$hdr" | tr -d '\r')
+  got=$(header_value "$hdr" "$header_name")
+  if [ "$status" != "$want_status" ]; then
+    echo "status mismatch for $url"
+    echo "expected: $want_status"
+    echo "actual: $status"
+    fail=$((fail + 1))
+  fi
+  if [ "$header_mode" = "prefix" ]; then
+    case "$got" in
+      "$header_want"*) ;;
+      *)
+        echo "header $header_name prefix mismatch for $url"
+        echo "expected prefix: $header_want"
+        echo "actual: $got"
+        fail=$((fail + 1))
+        ;;
+    esac
+  elif [ "$got" != "$header_want" ]; then
+    echo "header $header_name mismatch for $url"
+    echo "expected: $header_want"
+    echo "actual: $got"
+    fail=$((fail + 1))
+  fi
+  if [ "$body_sub" != "-" ] && ! grep -F -q -- "$body_sub" "$body"; then
+    echo "body substring missing for $url"
+    echo "expected: $body_sub"
+    fail=$((fail + 1))
+  fi
+}
+
 expect_resp \
   'http://127.0.0.1:8799/?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ%26t%3D42%26si%3Dabc' \
   200 \
@@ -137,6 +172,15 @@ expect_resp \
   - \
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 
+
+expect_has \
+  'http://127.0.0.1:8799/www.instagram.com/p/BsOGulcndj-/' \
+  200 \
+  content-type \
+  exact \
+  'text/html; charset=utf-8' \
+  '<meta property="og:image" content="http://127.0.0.1:8799/media/BsOGulcndj-/1">' \
+  'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

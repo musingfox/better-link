@@ -1,10 +1,12 @@
-import { cleanUrl } from "./clean";
+import { cleanUrl, INSTAGRAM_HOSTS } from "./clean";
 import { isCrawler } from "./crawler";
 import { expandShareLink, isShareable } from "./expand";
 import { fixServiceUrl } from "./fix-services";
-import { type PostCache } from "./instagram";
+import { instagramPost, isShortcode, type Post, type PostCache } from "./instagram";
+import { renderOgPage } from "./og";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
+const POST_PATH = /^\/p\/([^/]+)\/?$/;
 
 function text(status: number, body: string): Response {
   return new Response(body, {
@@ -27,11 +29,42 @@ async function convert(requestUrl: URL): Promise<Response> {
   return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
-function shareRedirect(
+function previewImage(origin: string, shortcode: string): string {
+  return `${origin}/media/${shortcode}/1`;
+}
+
+async function instagramOg(
+  requestUrl: URL,
+  cleaned: URL,
+  shortcode: string,
+  deps: { cache: () => PostCache },
+): Promise<Response> {
+  let post: Post | null = null;
+  try {
+    post = await instagramPost(shortcode, {
+      origin: requestUrl.origin,
+      cache: deps.cache(),
+    });
+  } catch {
+    post = null;
+  }
+  if (!post) return Response.redirect(cleaned.href, 302);
+  return new Response(
+    renderOgPage({
+      title: `@${post.username}`,
+      description: post.caption,
+      image: previewImage(requestUrl.origin, shortcode),
+      url: cleaned.href,
+    }),
+    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
+
+async function shareRedirect(
   requestUrl: URL,
   userAgent: string | null,
-  _deps: { cache: () => PostCache },
-): Response {
+  deps: { cache: () => PostCache },
+): Promise<Response> {
   const match = /^\/([^/]+)(\/.*)$/.exec(requestUrl.pathname);
   if (!match) return text(404, "not found");
   const host = match[1];
@@ -46,6 +79,15 @@ function shareRedirect(
     return text(404, "not found");
   }
   const cleaned = cleanUrl(candidate);
+  const postMatch = POST_PATH.exec(cleaned.pathname);
+  if (
+    isCrawler(userAgent) &&
+    INSTAGRAM_HOSTS.has(cleaned.hostname) &&
+    postMatch?.[1] !== undefined &&
+    isShortcode(postMatch[1])
+  ) {
+    return instagramOg(requestUrl, cleaned, postMatch[1], deps);
+  }
   const fixed = isCrawler(userAgent) ? fixServiceUrl(cleaned) : null;
   return Response.redirect((fixed ?? cleaned).href, 302);
 }
