@@ -551,6 +551,92 @@ test("instagramPost miss-path timing (warning only, never fails)", async () => {
   if (median > 2) console.warn(`instagramPost miss-path median ${median} ms`);
 });
 
+test("a video page without contextJSON yields no post", () => {
+  expect(
+    parseEmbed('<div data-media-type="GraphVideo"><span class="UsernameText">u</span></div>'),
+  ).toBeNull();
+});
+
+test("a video page with a null contextJSON yields no post", () => {
+  expect(
+    parseEmbed(
+      '<div data-media-type="GraphVideo"><span class="UsernameText">u</span><script>{"contextJSON":null}</script></div>',
+    ),
+  ).toBeNull();
+});
+
+test("a video page with a non-json contextJSON yields no post", () => {
+  expect(
+    parseEmbed(
+      '<div data-media-type="GraphVideo"><span class="UsernameText">u</span><script>{"contextJSON":"{not json"}</script></div>',
+    ),
+  ).toBeNull();
+});
+
+test("a video url that is not an http path yields no post", () => {
+  expect(
+    parseEmbed(
+      richPage("GraphVideo", {
+        is_video: true,
+        video_url: "javascript:alert(1)",
+        dimensions: { width: 720, height: 1280 },
+      }),
+    ),
+  ).toBeNull();
+});
+
+test("a carousel whose only image is not an http path yields no post", () => {
+  expect(
+    parseEmbed(
+      richPage("GraphSidecar", {
+        edge_sidecar_to_children: {
+          edges: [
+            {
+              node: {
+                is_video: false,
+                display_url: "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+              },
+            },
+          ],
+        },
+      }),
+    ),
+  ).toBeNull();
+});
+
+test("a carousel with no children yields no post", () => {
+  expect(
+    parseEmbed(
+      richPage("GraphSidecar", {
+        edge_sidecar_to_children: { edges: [] },
+      }),
+    ),
+  ).toBeNull();
+});
+
+test("a video without dimensions yields no post", () => {
+  expect(
+    parseEmbed(
+      richPage("GraphVideo", {
+        is_video: true,
+        video_url: "https://scontent.cdninstagram.com/v.mp4",
+      }),
+    ),
+  ).toBeNull();
+});
+
+test("an unknown media type yields no post", () => {
+  expect(
+    parseEmbed(
+      richPage("GraphReel", {
+        is_video: true,
+        video_url: "https://scontent.cdninstagram.com/v.mp4",
+        dimensions: { width: 720, height: 1280 },
+      }),
+    ),
+  ).toBeNull();
+});
+
 test("saved embed fixtures do not contain session tokens", async () => {
   const dir = new URL("./fixtures/instagram/", import.meta.url);
   const names = await readdir(fileURLToPath(dir.href));
