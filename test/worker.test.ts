@@ -134,6 +134,71 @@ test("a media path is not a share link", async () => {
   expect((await call("https://bl.example/media/abc123")).status).toBe(404);
 });
 
+test("a media index other than 1 is not found", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call("https://bl.example/media/BsOGulcndj-/2");
+    expect(res.status).toBe(404);
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media url with a trailing slash is not found", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call("https://bl.example/media/BsOGulcndj-/1/");
+    expect(res.status).toBe(404);
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media url with an invalid shortcode is not found", async () => {
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await call("https://bl.example/media/bad.id/1");
+    expect(res.status).toBe(404);
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media url is not found when instagram refuses the embed", async () => {
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(null, { status: 403 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/BsOGulcndj-/1");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("not found");
+    expect(res.headers.get("location")).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a carousel has no single media redirect", async () => {
+  const html = await Bun.file(
+    new URL("./fixtures/instagram/embed-DOBXTYNklfi.html", import.meta.url),
+  ).text();
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/DOBXTYNklfi/1");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("not found");
+    expect(res.headers.get("location")).toBeNull();
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 test("a host segment without a following slash is not a share link", async () => {
   expect((await call("https://bl.example/www.youtube.com")).status).toBe(404);
 });
