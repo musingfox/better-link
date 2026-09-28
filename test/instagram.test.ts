@@ -322,7 +322,7 @@ test("a cached post is returned without contacting instagram", async () => {
   };
   const fake = fakeCache();
   fake.entries.set(
-    "https://bl.example/__cache/instagram/BsOGulcndj-",
+    "https://bl.example/__cache/instagram/v2/BsOGulcndj-",
     new Response(JSON.stringify(stored)),
   );
   const calls: string[] = [];
@@ -340,9 +340,38 @@ test("a cached post is returned without contacting instagram", async () => {
   expect(fake.calls.put).toBe(0);
 });
 
+test("a post cached by the previous release is ignored", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const fake = fakeCache();
+  fake.entries.set(
+    "https://bl.example/__cache/instagram/BsOGulcndj-",
+    new Response(
+      JSON.stringify({
+        username: "old",
+        caption: "",
+        mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg",
+      }),
+    ),
+  );
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher,
+  });
+  expect(post?.username).toBe("world_record_egg");
+  expect(post?.media[0]?.url).toBe(EGG_MEDIA);
+  expect(calls).toHaveLength(1);
+  expect(fake.entries.has("https://bl.example/__cache/instagram/v2/BsOGulcndj-")).toBe(true);
+});
+
 test("a cached body that is not json yields no post and does not fetch", async () => {
   const fake = fakeCache();
-  fake.entries.set("https://bl.example/__cache/instagram/BsOGulcndj-", new Response("not json"));
+  fake.entries.set("https://bl.example/__cache/instagram/v2/BsOGulcndj-", new Response("not json"));
   const calls: string[] = [];
   const fetcher: Fetcher = (input) => {
     calls.push(input);
@@ -370,7 +399,7 @@ test("a cached body that is not a post yields no post and does not fetch", async
   for (const body of bodies) {
     const fake = fakeCache();
     fake.entries.set(
-      "https://bl.example/__cache/instagram/BsOGulcndj-",
+      "https://bl.example/__cache/instagram/v2/BsOGulcndj-",
       new Response(JSON.stringify(body)),
     );
     const calls: string[] = [];
@@ -415,7 +444,7 @@ test("a fetched post is stored for 24 hours under the origin cache key", async (
     cache: fake.cache,
     fetcher,
   });
-  const key = "https://bl.example/__cache/instagram/BsOGulcndj-";
+  const key = "https://bl.example/__cache/instagram/v2/BsOGulcndj-";
   expect([...fake.entries.keys()]).toEqual([key]);
   const entry = fake.entries.get(key);
   if (!entry) throw new Error("missing cache entry");

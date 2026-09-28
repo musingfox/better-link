@@ -140,7 +140,7 @@ export async function instagramPost(
 ): Promise<Post | null> {
   if (!isShortcode(shortcode)) return null;
   const fetcher = deps.fetcher ?? ((input, init) => fetch(input, init));
-  const key = `${deps.origin}/__cache/instagram/${shortcode}`;
+  const key = `${deps.origin}/__cache/instagram/v2/${shortcode}`;
   try {
     const hit = await deps.cache.match(key);
     if (hit) {
