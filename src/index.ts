@@ -65,15 +65,16 @@ async function instagramOg(
   const post = await loadPost(shortcode, requestUrl.origin, deps);
   const item = post?.media[index - 1];
   if (!post || item === undefined) return Response.redirect(landing.href, 302);
-  return new Response(
-    renderOgPage({
-      title: post.media.length > 1 ? `@${post.username} (${index}/${post.media.length})` : `@${post.username}`,
-      description: post.caption,
-      image: `${requestUrl.origin}/media/${shortcode}/${index}`,
-      url: landing.href,
-    }),
-    { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } },
-  );
+  const mediaUrl = `${requestUrl.origin}/media/${shortcode}/${index}`;
+  const title =
+    post.media.length > 1 ? `@${post.username} (${index}/${post.media.length})` : `@${post.username}`;
+  const page = renderOgPage({
+    title,
+    description: post.caption,
+    url: landing.href,
+    media: { ...item, url: mediaUrl },
+  });
+  return new Response(page, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
 async function shareRedirect(

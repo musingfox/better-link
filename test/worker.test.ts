@@ -1233,3 +1233,75 @@ test("a single video title is the account name", async () => {
     spy.mockRestore();
   }
 });
+
+test("a video preview is a player card for that item", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:video" content="https://bl.example/media/DJvkjAlvNc8/1">');
+    expect(body).toContain('<meta property="og:video:width" content="720">');
+    expect(body).toContain('<meta property="og:video:height" content="1280">');
+    expect(body).toContain('<meta name="twitter:card" content="player">');
+    expect(body).toContain('<meta name="twitter:player:stream" content="https://bl.example/media/DJvkjAlvNc8/1">');
+    expect(body).not.toContain("og:image");
+    expect(body).not.toContain("twitter:image");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a carousel video item is a player card and the image item stays an image", async () => {
+  const html = await instagramFixture("embed-DduKfFmDxsG.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const video = await callWorker(app, "https://bl.example/www.instagram.com/p/DduKfFmDxsG/2", {
+      "User-Agent": DISCORD,
+    });
+    const videoBody = await video.text();
+    expect(videoBody).toContain('<meta property="og:video" content="https://bl.example/media/DduKfFmDxsG/2">');
+    expect(videoBody).toContain('<meta property="og:video:width" content="720">');
+    expect(videoBody).toContain('<meta property="og:video:height" content="900">');
+    expect(videoBody).toContain('<meta property="og:title" content="@instagram (2/2)">');
+    expect(videoBody).not.toContain("fbcdn");
+    expect(videoBody).not.toContain("cdninstagram");
+    const image = await callWorker(app, "https://bl.example/www.instagram.com/p/DduKfFmDxsG/1", {
+      "User-Agent": DISCORD,
+    });
+    const imageBody = await image.text();
+    expect(imageBody).toContain('<meta property="og:image" content="https://bl.example/media/DduKfFmDxsG/1">');
+    expect(imageBody).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(imageBody).not.toContain("og:video");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a reel video card matches the post card except for the reel landing url", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  async function page(path: string): Promise<string> {
+    const app = createWorker({ cache: () => fakeCache().cache });
+    const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+    try {
+      const res = await callWorker(app, path, { "User-Agent": DISCORD });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      return await res.text();
+    } finally {
+      spy.mockRestore();
+    }
+  }
+  const pBody = await page("https://bl.example/www.instagram.com/p/DJvkjAlvNc8/");
+  const reelBody = await page("https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/");
+  expect(reelBody).toBe(pBody.replaceAll("instagram.com/p/DJvkjAlvNc8/", "instagram.com/reel/DJvkjAlvNc8/"));
+  expect(reelBody).toContain('<meta property="og:url" content="https://www.instagram.com/reel/DJvkjAlvNc8/">');
+  expect(reelBody).toContain('<meta property="og:video" content="https://bl.example/media/DJvkjAlvNc8/1">');
+  const indexed = await page("https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/1");
+  expect(indexed).toBe(reelBody);
+});

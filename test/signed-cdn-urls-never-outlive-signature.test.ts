@@ -151,3 +151,21 @@ test("a media redirect reuses the post cached for the preview", async () => {
     spy.mockRestore();
   }
 });
+
+test("a video og page does not embed a cdn address", async () => {
+  const html = await fixture("embed-DJvkjAlvNc8.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => htmlResponse(html)) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, "https://bl.example/www.instagram.com/p/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).not.toContain("cdninstagram");
+    expect(body).not.toContain("fbcdn");
+  } finally {
+    spy.mockRestore();
+  }
+});
