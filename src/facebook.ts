@@ -105,7 +105,7 @@ function attr(tag: string, name: string): string | null {
 function authorName(html: string): string | null {
   let i = 0;
   while (i < html.length) {
-    const at = html.indexOf("<img", i);
+    const at = findOpenTag(html, "img", i);
     if (at < 0) return null;
     const end = tagEnd(html, at);
     if (end < 0) return null;

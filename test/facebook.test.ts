@@ -320,6 +320,20 @@ test("a data-role lookalike is not the author image", () => {
   expect(post?.username).toBe("Right");
 });
 
+test("a hyphenated img tag is not the author", () => {
+  const post = parsePostPage(
+    '<img-x aria-label="WRONG" role="img"></img-x><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.username).toBe("Right");
+});
+
+test("a single-quoted attribute does not supply the author", () => {
+  const post = parsePostPage(
+    `<img alt='x role="img" aria-label="WRONG"' src="https://scontent.x.fbcdn.net/v/t39.30808-1/x.jpg"><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">`,
+  );
+  expect(post?.username).toBe("Right");
+});
+
 test("the author label is entity-decoded", () => {
   const post = parsePostPage(
     '<img aria-label="&#x66fc;&#x5831; A&amp;B" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
