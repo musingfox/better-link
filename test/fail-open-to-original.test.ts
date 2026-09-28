@@ -15,18 +15,25 @@ function fixture(name: string): Promise<string> {
   return Bun.file(new URL(`./fixtures/instagram/${name}`, import.meta.url)).text();
 }
 
-async function expectOpen(impl: () => Promise<Response>, fetches: number): Promise<void> {
-  const app = createWorker({ cache: () => fakeCache().cache });
+async function expectOpen(
+  impl: () => Promise<Response>,
+  fetches: number,
+  requestUrl = POST,
+  location = CLEANED,
+): Promise<ReturnType<typeof fakeCache>> {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
   const spy = spyOn(globalThis, "fetch").mockImplementation(impl as unknown as typeof fetch);
   try {
-    const res = await app.fetch(new Request(POST, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
+    const res = await app.fetch(new Request(requestUrl, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(CLEANED);
+    expect(res.headers.get("location")).toBe(location);
     expect(await res.text()).toBe("");
     expect(spy).toHaveBeenCalledTimes(fetches);
   } finally {
     spy.mockRestore();
   }
+  return fake;
 }
 
 test("a crawler is redirected when instagram returns 403", async () => {
@@ -97,4 +104,10 @@ test("a crawler is redirected when the cache binding throws", async () => {
   } finally {
     spy.mockRestore();
   }
+});
+
+test("a crawler is redirected when the embed video is blocked", async () => {
+  const html = await fixture("embed-Dd0M_ifNfXO.html");
+  const fake = await expectOpen(() => Promise.resolve(new Response(html, { status: 200 })), 1);
+  expect(fake.entries.size).toBe(0);
 });

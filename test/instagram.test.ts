@@ -155,6 +155,36 @@ function richPage(type: string, node: unknown): string {
   return `<div data-media-type="${type}"><span class="UsernameText">u</span><script>{"contextJSON":${literal}}</script></div>`;
 }
 
+test("a copyright-blocked video embed yields no post", async () => {
+  expect(parseEmbed(await fixture("embed-Dd0M_ifNfXO.html"))).toBeNull();
+});
+
+test("a watch-on-instagram marker on a playable video yields no post", async () => {
+  const html = (await fixture("embed-DJvkjAlvNc8.html")).replace(
+    '<span class="UsernameText">vatsalya_therapy</span>',
+    '<span class="UsernameText">vatsalya_therapy</span><span class="WatchOnInstagram">Watch on Instagram</span>',
+  );
+  expect(parseEmbed(html)).toBeNull();
+});
+
+test("a video whose context is copyright blocked yields no post", async () => {
+  const html = (await fixture("embed-DJvkjAlvNc8.html")).replaceAll(
+    '\\"copyright_blocked\\":false',
+    '\\"copyright_blocked\\":true',
+  );
+  expect(parseEmbed(html)).toBeNull();
+});
+
+test("a video without a video url yields no post", async () => {
+  const html = (await fixture("embed-DJvkjAlvNc8.html")).replaceAll('\\"video_url\\"', '\\"video_urx\\"');
+  expect(parseEmbed(html)).toBeNull();
+});
+
+test("a carousel with one unplayable video yields no post", async () => {
+  const html = (await fixture("embed-DduKfFmDxsG.html")).replaceAll('\\"video_url\\"', '\\"video_urx\\"');
+  expect(parseEmbed(html)).toBeNull();
+});
+
 test("a video url is rebuilt without userinfo, port, or the original host", () => {
   const post = parseEmbed(
     richPage("GraphVideo", {
