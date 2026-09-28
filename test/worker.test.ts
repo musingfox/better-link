@@ -1181,3 +1181,55 @@ test("a reel preview does not forward caller credentials", async () => {
     spy.mockRestore();
   }
 });
+
+test("a carousel item title counts that item", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const second = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2", {
+      "User-Agent": DISCORD,
+    });
+    const body = await second.text();
+    expect(body).toContain('<meta property="og:title" content="@legday (2/2)">');
+    expect(body).toContain("<title>@legday (2/2)</title>");
+    expect(body).toContain('<meta name="twitter:title" content="@legday (2/2)">');
+    const first = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/", {
+      "User-Agent": DISCORD,
+    });
+    expect(await first.text()).toContain('<meta property="og:title" content="@legday (1/2)">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a single image title is the account name", async () => {
+  const html = await instagramFixture("embed-BsOGulcndj-.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:title" content="@world_record_egg">');
+    const title = body.match(/<meta property="og:title" content="([^"]*)">/)?.[1];
+    expect(title?.includes("(")).toBe(false);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a single video title is the account name", async () => {
+  const html = await instagramFixture("embed-DJvkjAlvNc8.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+    });
+    expect(await res.text()).toContain('<meta property="og:title" content="@vatsalya_therapy">');
+  } finally {
+    spy.mockRestore();
+  }
+});

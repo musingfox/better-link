@@ -67,7 +67,7 @@ async function instagramOg(
   if (!post || item === undefined) return Response.redirect(landing.href, 302);
   return new Response(
     renderOgPage({
-      title: `@${post.username}`,
+      title: post.media.length > 1 ? `@${post.username} (${index}/${post.media.length})` : `@${post.username}`,
       description: post.caption,
       image: `${requestUrl.origin}/media/${shortcode}/${index}`,
       url: landing.href,
