@@ -1,11 +1,13 @@
-import { FACEBOOK_HOSTS } from "./expand";
-import { cdnUrl, decodeEntities, type Post } from "./instagram";
+import { FACEBOOK_HOSTS, type Fetcher } from "./expand";
+import { cdnUrl, decodeEntities, isPost, type Post, type PostCache } from "./instagram";
 
 const POST_PATH = /^\/[^/]+\/posts\/[^/]+\/?$/;
 const STORY_PATHS = new Set(["/permalink.php", "/story.php"]);
 const PHOTO_PATHS = new Set(["/photo.php", "/photo", "/photo/"]);
 const POST_IMAGE = "/t39.30808-6/";
 const CDN_ORIGIN = "https://scontent.xx.fbcdn.net";
+const PLUGIN = "https://www.facebook.com/plugins/post.php?href=";
+const EMBED_UA = "Go-http-client/1.1";
 
 function nonEmpty(url: URL, name: string): boolean {
   const value = url.searchParams.get(name);
@@ -161,3 +163,45 @@ export function parsePostPage(html: string): Post | null {
   }
 }
 
+function cacheKey(origin: string, canonical: URL): string {
+  return `${origin}/__cache/facebook/v1/${encodeURIComponent(canonical.host + canonical.pathname + canonical.search)}`;
+}
+
+export async function facebookPost(
+  canonical: URL,
+  deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
+): Promise<Post | null> {
+  if (!isFacebookPostUrl(canonical)) return null;
+  const fetcher = deps.fetcher ?? ((input, init) => fetch(input, init));
+  const key = cacheKey(deps.origin, canonical);
+  try {
+    const hit = await deps.cache.match(key);
+    if (hit) {
+      const body: unknown = await hit.json();
+      if (!isPost(body)) return null;
+      return body;
+    }
+    const response = await fetcher(PLUGIN + encodeURIComponent(canonical.href), {
+      headers: { "User-Agent": EMBED_UA },
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.status !== 200) return null;
+    const post = parsePostPage(await response.text());
+    if (!post) return null;
+    await deps.cache
+      .put(
+        key,
+        new Response(JSON.stringify(post), {
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "max-age=86400",
+          },
+        }),
+      )
+      .catch(() => {});
+    return post;
+  } catch {
+    return null;
+  }
+}

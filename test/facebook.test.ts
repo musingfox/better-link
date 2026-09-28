@@ -1,10 +1,16 @@
 import { fileURLToPath } from "node:url";
-import { expect, test } from "bun:test";
-import { isFacebookPostUrl, parsePostPage } from "../src/facebook";
+import { expect, spyOn, test } from "bun:test";
+import type { Fetcher } from "../src/expand";
+import { facebookPost, isFacebookPostUrl, parsePostPage } from "../src/facebook";
+import { fakeCache } from "./support/fake-cache";
 
 const MANNY =
   "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
 const STORY = "https://www.facebook.com/story.php?story_fbid=1&id=2";
+const MANNY_PLUGIN =
+  "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const STORY_PLUGIN =
+  "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fstory.php%3Fstory_fbid%3D1%26id%3D2";
 
 test("a pfbid post url is a facebook post", () => {
   expect(isFacebookPostUrl(new URL(MANNY))).toBe(true);
@@ -285,5 +291,143 @@ test("fixtures carry no session token", async () => {
   for (const name of names) {
     const text = await Bun.file(new URL(name, dir)).text();
     for (const pattern of patterns) expect(text).not.toMatch(pattern);
+  }
+});
+
+test("a cache miss loads post.php once with the pinned user agent", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const calls: Array<{ input: string; init: RequestInit }> = [];
+  const fetcher: Fetcher = (input, init) => {
+    calls.push({ input, init });
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  const post = await facebookPost(new URL(MANNY), {
+    origin: "https://bl.example",
+    cache: fakeCache().cache,
+    fetcher,
+  });
+  expect(post).toEqual(parsePostPage(html));
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.input).toBe(MANNY_PLUGIN);
+  const init = calls[0]?.init;
+  expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+  expect(new Headers(init?.headers).get("user-agent")).toBe("Go-http-client/1.1");
+  expect(init?.redirect).toBe("manual");
+  expect(init?.signal instanceof AbortSignal).toBe(true);
+});
+
+test("a story url is loaded from its plugin page", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  await facebookPost(new URL(STORY), { origin: "https://bl.example", cache: fakeCache().cache, fetcher });
+  expect(calls).toEqual([STORY_PLUGIN]);
+});
+
+test("a mobile post url is passed through as the plugin href", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  const canonical = new URL(
+    "https://m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+  );
+  await facebookPost(canonical, { origin: "https://bl.example", cache: fakeCache().cache, fetcher });
+  expect(calls[0]).toBe(
+    "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fm.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+  );
+});
+
+test("a non-200 plugin response yields no post", async () => {
+  for (const status of [403, 500, 302]) {
+    const fetcher: Fetcher = () =>
+      Promise.resolve(
+        new Response(null, {
+          status,
+          headers: status === 302 ? { Location: "https://www.facebook.com/login/" } : undefined,
+        }),
+      );
+    expect(
+      await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+    ).toBeNull();
+  }
+});
+
+test("a failed or aborted plugin fetch yields no post", async () => {
+  const rejected: Fetcher = () => Promise.reject(new TypeError("fetch failed"));
+  const aborted: Fetcher = () => Promise.reject(new DOMException("aborted", "AbortError"));
+  expect(
+    await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fakeCache().cache, fetcher: rejected }),
+  ).toBeNull();
+  expect(
+    await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fakeCache().cache, fetcher: aborted }),
+  ).toBeNull();
+});
+
+test("an unavailable plugin page yields no post", async () => {
+  const html = await fixture("unavailable.zh-Hant.html");
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  expect(
+    await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("a share link or a reel is not fetched", async () => {
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 200 }));
+  };
+  const fake = fakeCache();
+  expect(
+    await facebookPost(new URL("https://www.facebook.com/share/p/1Fu5ScGFUZ/"), {
+      origin: "https://bl.example",
+      cache: fake.cache,
+      fetcher,
+    }),
+  ).toBeNull();
+  expect(
+    await facebookPost(new URL("https://www.facebook.com/reel/1016339268064528"), {
+      origin: "https://bl.example",
+      cache: fake.cache,
+      fetcher,
+    }),
+  ).toBeNull();
+  expect(calls).toHaveLength(0);
+  expect(fake.calls.match).toBe(0);
+});
+
+test("a cache miss uses the global fetch when no fetcher is injected", async () => {
+  const html = await fixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fakeCache().cache });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("facebookPost miss-path timing (warning only, never fails)", async () => {
+  for (const name of ["reel-via-post-php.zh-Hant.html", "post-1Fu5ScGFUZ.zh-Hant.html"]) {
+    const html = await fixture(name);
+    const samples: number[] = [];
+    for (let i = 0; i < 50; i++) {
+      const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+      const start = performance.now();
+      await facebookPost(new URL(MANNY), { origin: "https://bl.example", cache: fakeCache().cache, fetcher });
+      samples.push(performance.now() - start);
+    }
+    samples.sort((a, b) => a - b);
+    const median = (samples[24] + samples[25]) / 2;
+    if (median > 2) console.warn(`facebookPost miss-path median ${name} ${median} ms`);
   }
 });
