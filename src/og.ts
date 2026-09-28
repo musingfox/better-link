@@ -21,6 +21,27 @@ export function renderOgPage(meta: {
   image: string;
   url: string;
 }): string {
+  const title = escapeHtml(meta.title);
   const description = escapeHtml(truncateDescription(meta.description));
-  return `<meta property="og:description" content="${description}">`;
+  const image = escapeHtml(meta.image);
+  const url = escapeHtml(meta.url);
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${title}</title>
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="${description}">
+<meta property="og:image" content="${image}">
+<meta property="og:url" content="${url}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${title}">
+<meta name="twitter:image" content="${image}">
+<meta http-equiv="refresh" content="0; url=${url}">
+</head>
+<body>
+<a href="${url}">${url}</a>
+</body>
+</html>
+`;
 }
