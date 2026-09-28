@@ -159,3 +159,108 @@ test("a crawler on a blocked reel is sent to the reel", async () => {
   );
   expect(fake.entries.size).toBe(0);
 });
+
+const MANNY = "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const MANNY_SHARE =
+  "https://bl.example/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?mibextid=wwXIfr";
+const MANNY_KEY =
+  "https://bl.example/__cache/facebook/v1/www.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const PLUGIN_PREFIX = "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2F";
+
+function facebookFixture(name: string): Promise<string> {
+  return Bun.file(new URL(`./fixtures/facebook/${name}`, import.meta.url)).text();
+}
+
+async function expectFacebookOpen(impl: () => Promise<Response>): Promise<ReturnType<typeof fakeCache>> {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(impl as unknown as typeof fetch);
+  try {
+    const res = await app.fetch(new Request(MANNY_SHARE, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0]?.[0])).toStartWith(PLUGIN_PREFIX);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(MANNY);
+    expect(await res.text()).toBe("");
+  } finally {
+    spy.mockRestore();
+  }
+  return fake;
+}
+
+test("a crawler is redirected when a facebook post is unavailable in traditional chinese", async () => {
+  const html = await facebookFixture("unavailable.zh-Hant.html");
+  const fake = await expectFacebookOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+  expect(fake.entries.size).toBe(0);
+});
+
+test("a crawler is redirected when a facebook post is unavailable in english", async () => {
+  const html = await facebookFixture("unavailable.en.html");
+  await expectFacebookOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+});
+
+test("a crawler is redirected when a facebook plugin page is an empty shell", async () => {
+  const html = await facebookFixture("empty-shell.html");
+  await expectFacebookOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+});
+
+test("a crawler is redirected when a facebook post has no image", async () => {
+  const html = await facebookFixture("post-personal-text-link.zh-Hant.html");
+  await expectFacebookOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+});
+
+test("a crawler is redirected when a facebook reel plugin page has no post image", async () => {
+  const html = await facebookFixture("reel-via-post-php.zh-Hant.html");
+  await expectFacebookOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+});
+
+test("a crawler is redirected when facebook returns 500", async () => {
+  await expectFacebookOpen(() => Promise.resolve(new Response(null, { status: 500 })));
+});
+
+test("a crawler is redirected when facebook redirects to login", async () => {
+  await expectFacebookOpen(() =>
+    Promise.resolve(new Response(null, { status: 302, headers: { Location: "https://www.facebook.com/login/" } })),
+  );
+});
+
+test("a crawler is redirected when the facebook fetch fails", async () => {
+  await expectFacebookOpen(() => Promise.reject(new TypeError("fetch failed")));
+});
+
+test("a crawler is redirected when the facebook cache binding throws", async () => {
+  const app = createWorker({
+    cache: () => {
+      throw new Error("no cache");
+    },
+  });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await app.fetch(new Request(MANNY_SHARE, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(MANNY);
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler is redirected when the facebook cache entry is not json", async () => {
+  const fake = fakeCache();
+  fake.entries.set(MANNY_KEY, new Response("not json"));
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await app.fetch(new Request(MANNY_SHARE, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(MANNY);
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
