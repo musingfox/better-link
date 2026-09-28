@@ -1,5 +1,5 @@
 import { cleanUrl } from "./clean";
-import { expandShareLink } from "./expand";
+import { expandShareLink, isShareable } from "./expand";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 
@@ -8,16 +8,6 @@ function text(status: number, body: string): Response {
     status,
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
-}
-
-function isShareable(url: URL): boolean {
-  return (
-    (url.protocol === "http:" || url.protocol === "https:") &&
-    url.username === "" &&
-    url.password === "" &&
-    url.port === "" &&
-    url.hostname.includes(".")
-  );
 }
 
 async function convert(requestUrl: URL): Promise<Response> {
