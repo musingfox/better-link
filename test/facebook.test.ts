@@ -285,6 +285,20 @@ test("a post with no message still returns an empty caption", () => {
   expect(post?.caption).toBe("");
 });
 
+test("a data-aria-label does not override the author name", () => {
+  const post = parsePostPage(
+    '<img data-aria-label="WRONG" aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.username).toBe("Right");
+});
+
+test("a data-role lookalike is not the author image", () => {
+  const post = parsePostPage(
+    '<img data-role="img" aria-label="WRONG" src="https://scontent.x.fbcdn.net/v/t39.30808-1/x.jpg"><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.username).toBe("Right");
+});
+
 test("the author label is entity-decoded", () => {
   const post = parsePostPage(
     '<img aria-label="&#x66fc;&#x5831; A&amp;B" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',

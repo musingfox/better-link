@@ -79,7 +79,7 @@ function authorName(html: string): string | null {
     if (end < 0) return null;
     const tag = html.slice(at, end + 1);
     i = end + 1;
-    if (!tag.includes('role="img"')) continue;
+    if (attr(tag, "role") !== "img") continue;
     const label = attr(tag, "aria-label");
     if (label === null) return null;
     const name = decodeEntities(label).trim();
