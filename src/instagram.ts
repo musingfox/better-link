@@ -97,26 +97,32 @@ function mediaUrlOf(html: string): string | null {
 }
 
 const EMBED_UA = "Go-http-client/1.1";
+const SHORTCODE = /^[A-Za-z0-9_-]+$/;
+
+export function isShortcode(value: string): boolean {
+  return SHORTCODE.test(value);
+}
 
 export async function instagramPost(
   shortcode: string,
   deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
 ): Promise<Post | null> {
+  if (!isShortcode(shortcode)) return null;
   const fetcher = deps.fetcher ?? ((input, init) => fetch(input, init));
   const key = `${deps.origin}/__cache/instagram/${shortcode}`;
   try {
     const hit = await deps.cache.match(key);
     if (hit) return (await hit.json()) as Post;
+    const response = await fetcher(`https://www.instagram.com/p/${shortcode}/embed/captioned/`, {
+      headers: { "User-Agent": EMBED_UA },
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.status !== 200) return null;
+    return parseEmbed(await response.text());
   } catch {
     return null;
   }
-  const response = await fetcher(`https://www.instagram.com/p/${shortcode}/embed/captioned/`, {
-    headers: { "User-Agent": EMBED_UA },
-    redirect: "manual",
-    signal: AbortSignal.timeout(5000),
-  });
-  if (response.status !== 200) return null;
-  return parseEmbed(await response.text());
 }
 
 export function parseEmbed(html: string): Post | null {

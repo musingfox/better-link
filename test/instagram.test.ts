@@ -207,6 +207,102 @@ test("a cached body that is not json yields no post and does not fetch", async (
   expect(calls).toHaveLength(0);
 });
 
+function countingFetcher(response: Response | Promise<Response>): {
+  fetcher: Fetcher;
+  calls: string[];
+} {
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(response);
+  };
+  return { fetcher, calls };
+}
+
+test("an upstream 403 yields no post", async () => {
+  const { fetcher, calls } = countingFetcher(new Response(null, { status: 403 }));
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fakeCache().cache,
+    fetcher,
+  });
+  expect(post).toBeNull();
+  expect(calls).toHaveLength(1);
+});
+
+test("an upstream 500 yields no post", async () => {
+  const { fetcher } = countingFetcher(new Response(null, { status: 500 }));
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("a redirect to the instagram login page yields no post", async () => {
+  const { fetcher } = countingFetcher(
+    new Response(null, { status: 302, headers: { Location: "https://www.instagram.com/accounts/login/" } }),
+  );
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("a redirect to unsupportedbrowser yields no post", async () => {
+  const { fetcher } = countingFetcher(
+    new Response(null, {
+      status: 302,
+      headers: { Location: "https://www.facebook.com/unsupportedbrowser" },
+    }),
+  );
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("a captioned embed that is not a single image yields no post", async () => {
+  const { fetcher } = countingFetcher(new Response(await fixture("embed-B7Y6Y3dF9sq.html"), { status: 200 }));
+  expect(
+    await instagramPost("B7Y6Y3dF9sq", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("a failed fetch yields no post", async () => {
+  const fetcher: Fetcher = () => Promise.reject(new TypeError("fetch failed"));
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("an aborted fetch yields no post", async () => {
+  const fetcher: Fetcher = () => Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+});
+
+test("a cache read failure yields no post", async () => {
+  const fake = fakeCache();
+  fake.cache.match = () => Promise.reject(new Error("cache down"));
+  const { fetcher, calls } = countingFetcher(new Response(null, { status: 200 }));
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fake.cache, fetcher }),
+  ).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
+test("a shortcode with a path segment is not fetched", async () => {
+  const { fetcher, calls } = countingFetcher(new Response(null, { status: 200 }));
+  expect(
+    await instagramPost("../x", { origin: "https://bl.example", cache: fakeCache().cache, fetcher }),
+  ).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
+test("an empty shortcode is not fetched", async () => {
+  const { fetcher, calls } = countingFetcher(new Response(null, { status: 200 }));
+  expect(await instagramPost("", { origin: "https://bl.example", cache: fakeCache().cache, fetcher })).toBeNull();
+  expect(calls).toHaveLength(0);
+});
+
 test("instagramPost miss-path timing (warning only, never fails)", async () => {
   const html = await fixture("embed-BsOGulcndj-.html");
   const samples: number[] = [];
