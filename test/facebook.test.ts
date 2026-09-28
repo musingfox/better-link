@@ -279,6 +279,13 @@ test("three or more breaks collapse to a blank line", () => {
   expect(post?.caption).toBe("a\n\nb");
 });
 
+test("post text comes from the post_message div", () => {
+  const post = parsePostPage(
+    '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg"><span data-testid="post_message">a</span><div data-testid="post_message">b</div>',
+  );
+  expect(post?.caption).toBe("b");
+});
+
 test("a post with no message still returns an empty caption", () => {
   const post = parsePostPage(SHELL);
   expect(post).not.toBeNull();

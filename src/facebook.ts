@@ -88,28 +88,44 @@ function authorName(html: string): string | null {
   return null;
 }
 
+function isDivTagAt(html: string, at: number): boolean {
+  if (!html.startsWith("<div", at)) return false;
+  const next = html[at + 4];
+  return next === " " || next === "\t" || next === "\n" || next === "\r" || next === ">";
+}
+
 function postMessage(html: string): string | null {
   const marker = 'data-testid="post_message"';
-  const at = html.indexOf(marker);
-  if (at < 0) return null;
-  const open = html.lastIndexOf("<div", at);
-  if (open < 0) return null;
-  const start = html.indexOf(">", at);
-  if (start < 0) return null;
-  let depth = 1;
-  let i = start + 1;
-  while (i < html.length) {
-    const nextOpen = html.indexOf("<div", i);
-    const nextClose = html.indexOf("</div>", i);
-    if (nextClose < 0) return null;
-    if (nextOpen >= 0 && nextOpen < nextClose) {
-      depth += 1;
-      i = nextOpen + 4;
-    } else {
-      depth -= 1;
-      if (depth === 0) return html.slice(start + 1, nextClose);
-      i = nextClose + 6;
+  let from = 0;
+  while (from < html.length) {
+    const at = html.indexOf(marker, from);
+    if (at < 0) return null;
+    const open = html.lastIndexOf("<", at);
+    const start = open < 0 ? -1 : html.indexOf(">", open);
+    if (open < 0 || !isDivTagAt(html, open) || start < at) {
+      from = at + marker.length;
+      continue;
     }
+    if (attr(html.slice(open, start + 1), "data-testid") !== "post_message") {
+      from = at + marker.length;
+      continue;
+    }
+    let depth = 1;
+    let i = start + 1;
+    while (i < html.length) {
+      const nextOpen = html.indexOf("<div", i);
+      const nextClose = html.indexOf("</div>", i);
+      if (nextClose < 0) return null;
+      if (nextOpen >= 0 && nextOpen < nextClose) {
+        depth += 1;
+        i = nextOpen + 4;
+      } else {
+        depth -= 1;
+        if (depth === 0) return html.slice(start + 1, nextClose);
+        i = nextClose + 6;
+      }
+    }
+    return null;
   }
   return null;
 }
