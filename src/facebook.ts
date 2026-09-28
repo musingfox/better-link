@@ -121,9 +121,7 @@ function authorName(html: string): string | null {
 }
 
 function isDivTagAt(html: string, at: number): boolean {
-  if (!html.startsWith("<div", at)) return false;
-  const next = html[at + 4];
-  return next === " " || next === "\t" || next === "\n" || next === "\r" || next === ">";
+  return isOpenTag(html, at, "div");
 }
 
 function postMessage(html: string): string | null {
@@ -133,7 +131,7 @@ function postMessage(html: string): string | null {
     const at = html.indexOf(marker, from);
     if (at < 0) return null;
     const open = html.lastIndexOf("<", at);
-    const start = open < 0 ? -1 : html.indexOf(">", open);
+    const start = open < 0 ? -1 : tagEnd(html, open);
     if (open < 0 || !isDivTagAt(html, open) || start < at) {
       from = at + marker.length;
       continue;
@@ -145,7 +143,7 @@ function postMessage(html: string): string | null {
     let depth = 1;
     let i = start + 1;
     while (i < html.length) {
-      const nextOpen = html.indexOf("<div", i);
+      const nextOpen = findOpenTag(html, "div", i);
       const nextClose = html.indexOf("</div>", i);
       if (nextClose < 0) return null;
       if (nextOpen >= 0 && nextOpen < nextClose) {
@@ -170,13 +168,13 @@ function removeExposedHide(html: string): string {
     const at = html.indexOf(marker, i);
     if (at < 0) return out + html.slice(i);
     out += html.slice(i, at);
-    const start = html.indexOf(">", at);
+    const start = tagEnd(html, at);
     if (start < 0) return out + html.slice(at);
     let depth = 1;
     let j = start + 1;
     let end = -1;
     while (j < html.length) {
-      const nextOpen = html.indexOf("<span", j);
+      const nextOpen = findOpenTag(html, "span", j);
       const nextClose = html.indexOf("</span>", j);
       if (nextClose < 0) break;
       if (nextOpen >= 0 && nextOpen < nextClose) {

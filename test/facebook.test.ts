@@ -300,6 +300,27 @@ test("post text comes from the post_message div", () => {
   expect(post?.caption).toBe("b");
 });
 
+test("a hyphenated div does not extend the post text", () => {
+  const post = parsePostPage(
+    `${SHELL}<div><div data-testid="post_message">a<div-x>b</div-x></div>c</div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("a hyphenated span inside a collapse control is removed with it", () => {
+  const post = parsePostPage(
+    `${SHELL}<div data-testid="post_message">a<span class="text_exposed_hide"><span-x>X</span-x></span>b</div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("a single-quoted attribute does not start the post text", () => {
+  const post = parsePostPage(
+    `${SHELL}<div title='x data-testid="post_message"'>a</div><div data-testid="post_message">b</div>`,
+  );
+  expect(post?.caption).toBe("b");
+});
+
 test("a post with no message still returns an empty caption", () => {
   const post = parsePostPage(SHELL);
   expect(post).not.toBeNull();
