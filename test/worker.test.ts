@@ -1638,3 +1638,63 @@ test("a mobile facebook post preview keeps the mobile host in the media url", as
     spy.mockRestore();
   }
 });
+
+test("a facebook preview fetch does not forward caller credentials", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD, ...SECRET });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const upstream = JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]]);
+    expect(upstream).not.toContain("s3cr3t");
+    expect(upstream).not.toContain(DISCORD);
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+    expect(trace).not.toContain(DISCORD);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook media fetch does not forward caller credentials", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, MANNY_MEDIA, { "User-Agent": DISCORD, ...SECRET });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const upstream = JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]]);
+    expect(upstream).not.toContain("s3cr3t");
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("facebook caller credentials are not written to the console", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const logs = spyOn(console, "log");
+  const infos = spyOn(console, "info");
+  const warns = spyOn(console, "warn");
+  const errors = spyOn(console, "error");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD, ...SECRET });
+    await callWorker(app, MANNY_MEDIA, { "User-Agent": DISCORD, ...SECRET });
+    const recorded = JSON.stringify([logs.mock.calls, infos.mock.calls, warns.mock.calls, errors.mock.calls]);
+    expect(recorded).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+    logs.mockRestore();
+    infos.mockRestore();
+    warns.mockRestore();
+    errors.mockRestore();
+  }
+});
