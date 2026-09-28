@@ -168,6 +168,42 @@ test("an empty page or an unparseable image source yields no post", () => {
   expect(parsePostPage('<img src="not a url /v/t39.30808-6/">')).toBeNull();
 });
 
+test("a compact post names its author", async () => {
+  const post = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
+  expect(post?.username).toBe("曼報 Manny's Newsletter");
+});
+
+test("an album names its author", async () => {
+  const post = parsePostPage(await fixture("post-album-3-images.zh-Hant.html"));
+  expect(post?.username).toBe("源來適你");
+});
+
+test("the english page names the same author", async () => {
+  const en = parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"));
+  const zh = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
+  expect(en?.username).toBe(zh?.username);
+  expect(en?.username).toBe("曼報 Manny's Newsletter");
+});
+
+test("a post image without an author image yields no post", () => {
+  expect(parsePostPage('<img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">')).toBeNull();
+});
+
+test("a blank author label yields no post", () => {
+  expect(
+    parsePostPage(
+      '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="  " role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+    ),
+  ).toBeNull();
+});
+
+test("the author label is entity-decoded", () => {
+  const post = parsePostPage(
+    '<img aria-label="&#x66fc;&#x5831; A&amp;B" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.username).toBe("曼報 A&B");
+});
+
 test("fixtures carry no session token", async () => {
   const patterns = [
     /"(token|ajaxpipe_token|compat_iframe_token|async_get_token)":"[^"]+"/,
