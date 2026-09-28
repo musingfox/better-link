@@ -91,9 +91,10 @@ function mediaUrlOf(html: string): string | null {
   const src = embeddedImageSrc(html);
   if (src === null) return null;
   const url = new URL(src);
-  url.protocol = "https:";
-  url.host = "scontent.cdninstagram.com";
-  return url.href;
+  // Path must stay a path. data: and javascript: pathnames have no leading slash,
+  // so prefixing the CDN origin would glue the payload onto the host.
+  if (!url.pathname.startsWith("/")) return null;
+  return "https://scontent.cdninstagram.com" + url.pathname + url.search;
 }
 
 const EMBED_UA = "Go-http-client/1.1";

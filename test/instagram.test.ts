@@ -21,6 +21,18 @@ test("a single-image embed yields the account and the cdninstagram image", async
   expect(post?.mediaUrl).toBe(EGG_MEDIA);
 });
 
+test("an image source cannot leak its scheme, userinfo, or port into the media url", () => {
+  const page = (src: string) =>
+    `<div data-media-type="GraphImage"><span class="UsernameText">u</span><img class="EmbeddedMediaImage" alt="x" src="${src}"></div>`;
+  expect(parseEmbed(page("data:image/gif;base64,R0lGODlhAQABAAAAACw="))).toBeNull();
+  expect(parseEmbed(page("javascript:alert(1)"))).toBeNull();
+  expect(parseEmbed(page("https://user:pw@evil.example:8443/x.jpg"))).toEqual({
+    username: "u",
+    caption: "",
+    mediaUrl: "https://scontent.cdninstagram.com/x.jpg",
+  });
+});
+
 test("a minimal GraphImage embed keeps the image query and an empty caption", () => {
   const post = parseEmbed(
     '<div data-media-type="GraphImage"><span class="UsernameText">a_b</span><img class="EmbeddedMediaImage" alt="x" src="https://scontent-xyz.cdninstagram.com/v/p.jpg?a=1&amp;oe=ABC" srcset="https://other.example/s.jpg 640w"></div>',
