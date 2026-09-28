@@ -80,3 +80,20 @@ test("the input URL is not mutated", () => {
   fixServiceUrl(u);
   expect(u.href).toBe("https://x.com/a?b=1");
 });
+
+const UNLISTED = [
+  "https://www.instagram.com/p/ABC/",
+  "https://www.facebook.com/reel/1016339268064528",
+  "https://www.youtube.com/watch?v=abc",
+  "https://www.bsky.app/profile/x/post/y",
+  "https://fixupx.com/jack/status/20",
+  "https://box.com/x",
+  "https://evil.x.com/a",
+  "https://reddit.com.evil.example/a",
+];
+
+for (const href of UNLISTED) {
+  test(`${new URL(href).hostname} has no fix service`, () => {
+    expect(fixServiceUrl(new URL(href))).toBeNull();
+  });
+}
