@@ -1429,3 +1429,104 @@ test("a media redirect reuses the carousel preview cache", async () => {
     spy.mockRestore();
   }
 });
+
+const MANNY = "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const MANNY_SHARE =
+  "https://bl.example/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?mibextid=wwXIfr";
+
+test("a desktop browser on a facebook post does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, MANNY_SHARE, { "User-Agent": CHROME });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(MANNY);
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook post with no user agent does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, MANNY_SHARE);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(MANNY);
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler on a facebook reel does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.facebook.com/reel/1016339268064528");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler on a facebook share short link does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/share/p/1Fu5ScGFUZ/?mibextid=wwXIfr", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.facebook.com/share/p/1Fu5ScGFUZ/");
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler on a facebook group permalink does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/groups/g0v.general/permalink/1/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.facebook.com/groups/g0v.general/permalink/1/");
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler on a facebook profile does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/mannynewsletter", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.facebook.com/mannynewsletter");
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
