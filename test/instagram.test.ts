@@ -219,6 +219,58 @@ function countingFetcher(response: Response | Promise<Response>): {
   return { fetcher, calls };
 }
 
+test("a fetched post is stored for 24 hours under the origin cache key", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const fake = fakeCache();
+  const { fetcher, calls } = countingFetcher(
+    new Response(html, {
+      status: 200,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    }),
+  );
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher,
+  });
+  const key = "https://bl.example/__cache/instagram/BsOGulcndj-";
+  expect([...fake.entries.keys()]).toEqual([key]);
+  const entry = fake.entries.get(key);
+  if (!entry) throw new Error("missing cache entry");
+  expect(entry.headers.get("cache-control")).toBe("max-age=86400");
+  const body: unknown = await entry.json();
+  expect(body).toEqual(post);
+  expect(calls).toHaveLength(1);
+  expect(fake.calls.match).toBe(1);
+  expect(fake.calls.put).toBe(1);
+});
+
+test("a refused embed is not cached", async () => {
+  const fake = fakeCache();
+  const { fetcher } = countingFetcher(new Response(null, { status: 403 }));
+  expect(
+    await instagramPost("BsOGulcndj-", { origin: "https://bl.example", cache: fake.cache, fetcher }),
+  ).toBeNull();
+  expect(fake.entries.size).toBe(0);
+  expect(fake.calls.put).toBe(0);
+});
+
+test("a cache write failure still returns the post", async () => {
+  const html = await fixture("embed-BsOGulcndj-.html");
+  const fake = fakeCache();
+  fake.cache.put = () => Promise.reject(new Error("413"));
+  const post = await instagramPost("BsOGulcndj-", {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher: () => Promise.resolve(new Response(html, { status: 200 })),
+  });
+  expect(post).toEqual({
+    username: "world_record_egg",
+    caption: EGG_CAPTION,
+    mediaUrl: EGG_MEDIA,
+  });
+});
+
 test("an upstream 403 yields no post", async () => {
   const { fetcher, calls } = countingFetcher(new Response(null, { status: 403 }));
   const post = await instagramPost("BsOGulcndj-", {

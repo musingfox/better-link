@@ -119,7 +119,20 @@ export async function instagramPost(
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) return null;
-    return parseEmbed(await response.text());
+    const post = parseEmbed(await response.text());
+    if (!post) return null;
+    await deps.cache
+      .put(
+        key,
+        new Response(JSON.stringify(post), {
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "max-age=86400",
+          },
+        }),
+      )
+      .catch(() => {});
+    return post;
   } catch {
     return null;
   }
