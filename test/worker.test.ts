@@ -793,3 +793,89 @@ test("a discord crawler on an invalid instagram shortcode does not fetch", async
     spy.mockRestore();
   }
 });
+
+const SECRET = {
+  Cookie: "session=s3cr3t",
+  Authorization: "Bearer s3cr3t",
+} as const;
+
+async function eggHtml(): Promise<string> {
+  return Bun.file(new URL("./fixtures/instagram/embed-BsOGulcndj-.html", import.meta.url)).text();
+}
+
+function dumped(res: Response, body: string): string {
+  return `${body}\n${[...res.headers].map(([name, value]) => `${name}: ${value}`).join("\n")}`;
+}
+
+test("an instagram preview fetch does not forward caller credentials", async () => {
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => eggHtml().then((html) => new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    expect(
+      JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(spy.mock.calls[0]?.[1]?.headers)]]),
+    ).not.toContain("s3cr3t");
+    const body = await res.text();
+    const trace = dumped(res, body);
+    expect(trace).not.toContain("s3cr3t");
+    expect(trace).not.toContain(DISCORD);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a media fetch does not forward caller credentials", async () => {
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => eggHtml().then((html) => new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/media/BsOGulcndj-/1", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("caller credentials are not written to the console", async () => {
+  const logs = spyOn(console, "log");
+  const infos = spyOn(console, "info");
+  const warns = spyOn(console, "warn");
+  const errors = spyOn(console, "error");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => eggHtml().then((html) => new Response(html, { status: 200 })));
+  try {
+    await callWorker(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    await callWorker(app, "https://bl.example/media/BsOGulcndj-/1", {
+      "User-Agent": DISCORD,
+      ...SECRET,
+    });
+    const recorded = JSON.stringify([
+      logs.mock.calls,
+      infos.mock.calls,
+      warns.mock.calls,
+      errors.mock.calls,
+    ]);
+    expect(recorded).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+    logs.mockRestore();
+    infos.mockRestore();
+    warns.mockRestore();
+    errors.mockRestore();
+  }
+});
