@@ -47,6 +47,81 @@ function authorName(html: string): string | null {
   return null;
 }
 
+function postMessage(html: string): string | null {
+  const marker = 'data-testid="post_message"';
+  const at = html.indexOf(marker);
+  if (at < 0) return null;
+  const open = html.lastIndexOf("<div", at);
+  if (open < 0) return null;
+  const start = html.indexOf(">", at);
+  if (start < 0) return null;
+  let depth = 1;
+  let i = start + 1;
+  while (i < html.length) {
+    const nextOpen = html.indexOf("<div", i);
+    const nextClose = html.indexOf("</div>", i);
+    if (nextClose < 0) return null;
+    if (nextOpen >= 0 && nextOpen < nextClose) {
+      depth += 1;
+      i = nextOpen + 4;
+    } else {
+      depth -= 1;
+      if (depth === 0) return html.slice(start + 1, nextClose);
+      i = nextClose + 6;
+    }
+  }
+  return null;
+}
+
+function removeExposedHide(html: string): string {
+  const marker = '<span class="text_exposed_hide"';
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    const at = html.indexOf(marker, i);
+    if (at < 0) return out + html.slice(i);
+    out += html.slice(i, at);
+    const start = html.indexOf(">", at);
+    if (start < 0) return out + html.slice(at);
+    let depth = 1;
+    let j = start + 1;
+    let end = -1;
+    while (j < html.length) {
+      const nextOpen = html.indexOf("<span", j);
+      const nextClose = html.indexOf("</span>", j);
+      if (nextClose < 0) break;
+      if (nextOpen >= 0 && nextOpen < nextClose) {
+        depth += 1;
+        j = nextOpen + 5;
+      } else {
+        depth -= 1;
+        j = nextClose + 7;
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+      }
+    }
+    if (end < 0) return out + html.slice(at);
+    i = end;
+  }
+  return out;
+}
+
+function captionOf(html: string): string {
+  const inner = postMessage(html);
+  if (inner === null) return "";
+  const text = removeExposedHide(inner)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]*>/g, "");
+  return decodeEntities(text)
+    .replace(/\u200b/g, "")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function postImageUrl(html: string): string | null {
   let i = 0;
   while (i < html.length) {
@@ -80,8 +155,9 @@ export function parsePostPage(html: string): Post | null {
     if (username === null) return null;
     const image = postImageUrl(html);
     if (image === null) return null;
-    return { username, caption: "", media: [{ kind: "image", url: image }] };
+    return { username, caption: captionOf(html), media: [{ kind: "image", url: image }] };
   } catch {
     return null;
   }
 }
+

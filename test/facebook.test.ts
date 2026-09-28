@@ -197,6 +197,70 @@ test("a blank author label yields no post", () => {
   ).toBeNull();
 });
 
+const SHELL =
+  '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">';
+
+test("a compact post keeps the full text without collapse controls", async () => {
+  const caption = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"))?.caption ?? "";
+  expect(caption.startsWith("2020 年，我開始利用下班時間寫免費電子報《曼報 Manny’s Newsletter》，至今累積超過 4.3 萬人訂閱，平均開信率超過 40%。\n\n兩年後，我又找了另一位上班族 Angela，")).toBe(true);
+  expect(caption).toContain("「時下熱議的話題」。\n\n不過，關注這些事情超過五年後");
+  expect(caption).not.toContain("⋯⋯");
+  expect(caption).not.toContain("查看更多");
+  expect(caption).not.toContain("See more");
+  expect(caption).not.toContain("\u200b");
+  expect(caption).not.toContain("<");
+  expect(caption).not.toContain("&amp;");
+  expect(caption).not.toContain("&#");
+});
+
+test("english and traditional pages share the post text", async () => {
+  const en = parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"))?.caption;
+  const zh = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"))?.caption;
+  expect(en).toBe(zh);
+});
+
+test("an album keeps its post text", async () => {
+  const caption = parsePostPage(await fixture("post-album-3-images.zh-Hant.html"))?.caption ?? "";
+  expect(
+    caption.startsWith("各位小夥伴們，你們知道後天 6/12（週四）有一場《Kafka相關饅頭營》線上研討會嗎？\n\n就算還不知道也沒關係！"),
+  ).toBe(true);
+});
+
+test("collapse controls, breaks, and entities become plain text", () => {
+  const post = parsePostPage(
+    `${SHELL}<div data-testid="post_message" class="_5pbx userContent"><div class="text_exposed_root"><p>a<br /> \u200b<br /> b &amp; <a href="https://l.facebook.com/l.php?u=x">link</a> <span class="_6qdm">🎁</span><span class="text_exposed_hide">...</span><span class="text_exposed_show"> more</span></p><p> c</p></div></div><div>after</div>`,
+  );
+  expect(post?.caption).toBe("a\n\nb & link 🎁 more\n\nc");
+});
+
+test("nested divs contribute their text without added whitespace", () => {
+  const post = parsePostPage(`${SHELL}<div data-testid="post_message"><div><div>x</div>y</div></div>z`);
+  expect(post?.caption).toBe("xy");
+});
+
+test("a nested see-more control is removed", () => {
+  const post = parsePostPage(
+    `${SHELL}<div data-testid="post_message"><p>a<span class="text_exposed_hide"> <span class="text_exposed_link"><a class="see_more_link"><span class="see_more_link_inner">See more</span></a></span></span>b</p></div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("entities that look like tags are decoded after tags are stripped", () => {
+  const post = parsePostPage(`${SHELL}<div data-testid="post_message"><p>&lt;b&gt;x&lt;/b&gt;</p></div>`);
+  expect(post?.caption).toBe("<b>x</b>");
+});
+
+test("three or more breaks collapse to a blank line", () => {
+  const post = parsePostPage(`${SHELL}<div data-testid="post_message"><p>a<br><br><br><br>b</p></div>`);
+  expect(post?.caption).toBe("a\n\nb");
+});
+
+test("a post with no message still returns an empty caption", () => {
+  const post = parsePostPage(SHELL);
+  expect(post).not.toBeNull();
+  expect(post?.caption).toBe("");
+});
+
 test("the author label is entity-decoded", () => {
   const post = parsePostPage(
     '<img aria-label="&#x66fc;&#x5831; A&amp;B" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
