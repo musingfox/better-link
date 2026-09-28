@@ -24,7 +24,7 @@ function codePoint(cp: number, raw: string): string {
   return String.fromCodePoint(cp);
 }
 
-function decodeEntities(value: string): string {
+export function decodeEntities(value: string): string {
   return value.replace(ENTITY, (entity, hex: string | undefined, dec: string | undefined) => {
     if (hex !== undefined) return codePoint(Number.parseInt(hex, 16), entity);
     if (dec !== undefined) return codePoint(Number.parseInt(dec, 10), entity);
@@ -91,18 +91,18 @@ function captionOf(html: string): string {
   return decodeEntities(region).trim();
 }
 
-function cdnUrl(raw: string): string | null {
+export function cdnUrl(raw: string, origin: string): string | null {
   const url = new URL(raw);
   // Path must stay a path. data: and javascript: pathnames have no leading slash,
   // so prefixing the CDN origin would glue the payload onto the host.
   if (!url.pathname.startsWith("/")) return null;
-  return "https://scontent.cdninstagram.com" + url.pathname + url.search;
+  return origin + url.pathname + url.search;
 }
 
 function mediaUrlOf(html: string): string | null {
   const src = embeddedImageSrc(html);
   if (src === null) return null;
-  return cdnUrl(src);
+  return cdnUrl(src, "https://scontent.cdninstagram.com");
 }
 
 const EMBED_UA = "Go-http-client/1.1";
@@ -122,7 +122,7 @@ function isMedia(value: unknown): value is Media {
   return false;
 }
 
-function isPost(value: unknown): value is Post {
+export function isPost(value: unknown): value is Post {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   return (
@@ -203,14 +203,14 @@ function shortcodeMedia(context: unknown): Record<string, unknown> | null {
 
 function imageItem(raw: unknown): Media | null {
   if (typeof raw !== "string") return null;
-  const url = cdnUrl(raw);
+  const url = cdnUrl(raw, "https://scontent.cdninstagram.com");
   if (url === null) return null;
   return { kind: "image", url };
 }
 
 function videoItem(node: Record<string, unknown>): Media | null {
   if (typeof node.video_url !== "string") return null;
-  const url = cdnUrl(node.video_url);
+  const url = cdnUrl(node.video_url, "https://scontent.cdninstagram.com");
   if (url === null) return null;
   const dimensions = asRecord(node.dimensions);
   if (dimensions === null) return null;
