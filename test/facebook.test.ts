@@ -16,22 +16,22 @@ const MANNY_KEY =
 const STORY_KEY =
   "https://bl.example/__cache/facebook/v1/www.facebook.com%2Fstory.php%3Fstory_fbid%3D1%26id%3D2";
 
-test("a pfbid post url is a facebook post", () => {
+test("a pfbid post url is a facebook post", async () => {
   expect(isFacebookPostUrl(new URL(MANNY))).toBe(true);
 });
 
-test("a numeric post url is a facebook post", () => {
+test("a numeric post url is a facebook post", async () => {
   expect(
     isFacebookPostUrl(new URL("https://www.facebook.com/mannynewsletter/posts/1044201515113178/")),
   ).toBe(true);
 });
 
-test("story and permalink urls with both ids are facebook posts", () => {
+test("story and permalink urls with both ids are facebook posts", async () => {
   expect(isFacebookPostUrl(new URL(STORY))).toBe(true);
   expect(isFacebookPostUrl(new URL("https://facebook.com/permalink.php?story_fbid=1&id=2"))).toBe(true);
 });
 
-test("photo urls with fbid are facebook posts", () => {
+test("photo urls with fbid are facebook posts", async () => {
   expect(
     isFacebookPostUrl(
       new URL("https://www.facebook.com/photo.php?fbid=1044200305113299&set=a.231310739735597&type=3"),
@@ -40,7 +40,7 @@ test("photo urls with fbid are facebook posts", () => {
   expect(isFacebookPostUrl(new URL("https://m.facebook.com/photo/?fbid=1"))).toBe(true);
 });
 
-test("shares, reels, groups, profiles, videos, watch, and extra segments are not posts", () => {
+test("shares, reels, groups, profiles, videos, watch, and extra segments are not posts", async () => {
   const paths = [
     "/share/p/1Fu5ScGFUZ/",
     "/reel/1016339268064528",
@@ -58,14 +58,14 @@ test("shares, reels, groups, profiles, videos, watch, and extra segments are not
   }
 });
 
-test("story and photo urls missing an id are not posts", () => {
+test("story and photo urls missing an id are not posts", async () => {
   expect(isFacebookPostUrl(new URL("https://www.facebook.com/story.php?story_fbid=1"))).toBe(false);
   expect(isFacebookPostUrl(new URL("https://www.facebook.com/story.php?story_fbid=&id=2"))).toBe(false);
   expect(isFacebookPostUrl(new URL("https://www.facebook.com/photo.php"))).toBe(false);
   expect(isFacebookPostUrl(new URL("https://www.facebook.com/photo/?set=a.1"))).toBe(false);
 });
 
-test("lookalike hosts and other platforms are not facebook posts", () => {
+test("lookalike hosts and other platforms are not facebook posts", async () => {
   expect(isFacebookPostUrl(new URL("https://www.facebook.com.evil.example/a/posts/1"))).toBe(false);
   expect(isFacebookPostUrl(new URL("https://l.facebook.com/a/posts/1"))).toBe(false);
   expect(isFacebookPostUrl(new URL("https://www.instagram.com/p/BsOGulcndj-/"))).toBe(false);
@@ -91,7 +91,7 @@ function fixture(name: string): Promise<string> {
 }
 
 test("a compact post's first image is the post photo, not the avatar", async () => {
-  const post = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
+  const post = await parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
   expect(post).not.toBeNull();
   expect(post?.media).toHaveLength(1);
   const url = new URL(post?.media[0]?.url ?? "");
@@ -104,7 +104,7 @@ test("a compact post's first image is the post photo, not the avatar", async () 
 });
 
 test("an album yields only its first post image", async () => {
-  const post = parsePostPage(await fixture("post-album-3-images.zh-Hant.html"));
+  const post = await parsePostPage(await fixture("post-album-3-images.zh-Hant.html"));
   expect(post?.media).toHaveLength(1);
   const url = new URL(post?.media[0]?.url ?? "");
   expect(url.host).toBe("scontent.xx.fbcdn.net");
@@ -113,14 +113,14 @@ test("an album yields only its first post image", async () => {
 });
 
 test("english and traditional pages share the post image path", async () => {
-  const en = parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"));
-  const zh = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
+  const en = await parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"));
+  const zh = await parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
   expect(new URL(en?.media[0]?.url ?? "").pathname).toBe(new URL(zh?.media[0]?.url ?? "").pathname);
 });
 
-test("a post image is rebuilt on the fixed cdn host", () => {
+test("a post image is rebuilt on the fixed cdn host", async () => {
   expect(
-    parsePostPage(
+    await parsePostPage(
       '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg?oe=1&amp;oh=2">',
     ),
   ).toEqual({
@@ -130,60 +130,74 @@ test("a post image is rebuilt on the fixed cdn host", () => {
   });
 });
 
-test("an old photo size is not a post image", () => {
+test("an old photo size is not a post image", async () => {
   expect(
-    parsePostPage(
+    await parsePostPage(
       '<img src="https://scontent.x.fbcdn.net/v/t1.6435-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t1.6435-9/old.jpg">',
     ),
   ).toBeNull();
 });
 
-test("a post image mentioned only in a query is ignored", () => {
+test("a post image mentioned only in a query is ignored", async () => {
   expect(
-    parsePostPage(
+    await parsePostPage(
       '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://external.xx.fbcdn.net/emg1/v/t13/x?url=/v/t39.30808-6/p.jpg">',
     ),
   ).toBeNull();
 });
 
-test("scheme, userinfo, and port from the image url are dropped", () => {
-  const post = parsePostPage(
+test("scheme, userinfo, and port from the image url are dropped", async () => {
+  const post = await parsePostPage(
     '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://user:pw@evil.example:8443/v/t39.30808-6/p.jpg">',
   );
   expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
 });
 
-test("a data-src lookalike does not replace the src post image", () => {
-  const post = parsePostPage(
+test("a data-src lookalike does not replace the src post image", async () => {
+  const post = await parsePostPage(
     '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img data-src="https://scontent.x.fbcdn.net/v/t39.30808-1/x.jpg" src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
 });
 
-test("a data-src post path is ignored when src is an avatar", () => {
-  const post = parsePostPage(
+test("a data-src post path is ignored when src is an avatar", async () => {
+  const post = await parsePostPage(
     '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img data-src="https://scontent.x.fbcdn.net/v/t39.30808-6/wrong.jpg" src="https://scontent.x.fbcdn.net/v/t39.30808-1/b.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
 });
 
-test("a hyphenated img tag is not a post image", () => {
-  const post = parsePostPage(
+test("a hyphenated img tag is not a post image", async () => {
+  const post = await parsePostPage(
     '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img-x src="https://scontent.x.fbcdn.net/v/t39.30808-6/wrong.jpg"></img-x><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
 });
 
-test("a single-quoted attribute does not supply the post image", () => {
-  const post = parsePostPage(
+test("a single-quoted attribute does not supply the post image", async () => {
+  const post = await parsePostPage(
     `<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img alt='x src="https://scontent.x.fbcdn.net/v/t39.30808-6/wrong.jpg"' src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">`,
   );
   expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
 });
 
-test("a json-escaped cdn url outside an img tag is ignored", () => {
+test("markup inside an attribute is not a post image", async () => {
+  const post = await parsePostPage(
+    `<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><div title='<img src="https://scontent.x.fbcdn.net/v/t39.30808-6/wrong.jpg">'></div><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">`,
+  );
+  expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
+});
+
+test("an image inside a comment, script, or style is ignored", async () => {
+  const post = await parsePostPage(
+    '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><!-- <img src="https://scontent.x.fbcdn.net/v/t39.30808-6/c.jpg"> --><script>var s = \'<img src="https://scontent.x.fbcdn.net/v/t39.30808-6/s.jpg">\';</script><style>/* <img src="https://scontent.x.fbcdn.net/v/t39.30808-6/y.jpg"> */</style><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
+});
+
+test("a json-escaped cdn url outside an img tag is ignored", async () => {
   expect(
-    parsePostPage(
+    await parsePostPage(
       '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><script type="application/ld+json">{"contentUrl":"https:\\/\\/scontent.x.fbcdn.net\\/v\\/t39.30808-6\\/p.jpg"}</script>',
     ),
   ).toBeNull();
@@ -197,39 +211,39 @@ test("pages without a post image yield no post", async () => {
     "post-personal-text-link.zh-Hant.html",
     "reel-via-post-php.zh-Hant.html",
   ]) {
-    expect(parsePostPage(await fixture(name))).toBeNull();
+    expect(await parsePostPage(await fixture(name))).toBeNull();
   }
 });
 
-test("an empty page or an unparseable image source yields no post", () => {
-  expect(parsePostPage("")).toBeNull();
-  expect(parsePostPage('<img src="not a url /v/t39.30808-6/">')).toBeNull();
+test("an empty page or an unparseable image source yields no post", async () => {
+  expect(await parsePostPage("")).toBeNull();
+  expect(await parsePostPage('<img src="not a url /v/t39.30808-6/">')).toBeNull();
 });
 
 test("a compact post names its author", async () => {
-  const post = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
+  const post = await parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
   expect(post?.username).toBe("曼報 Manny's Newsletter");
 });
 
 test("an album names its author", async () => {
-  const post = parsePostPage(await fixture("post-album-3-images.zh-Hant.html"));
+  const post = await parsePostPage(await fixture("post-album-3-images.zh-Hant.html"));
   expect(post?.username).toBe("源來適你");
 });
 
 test("the english page names the same author", async () => {
-  const en = parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"));
-  const zh = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
+  const en = await parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"));
+  const zh = await parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"));
   expect(en?.username).toBe(zh?.username);
   expect(en?.username).toBe("曼報 Manny's Newsletter");
 });
 
-test("a post image without an author image yields no post", () => {
-  expect(parsePostPage('<img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">')).toBeNull();
+test("a post image without an author image yields no post", async () => {
+  expect(await parsePostPage('<img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">')).toBeNull();
 });
 
-test("a blank author label yields no post", () => {
+test("a blank author label yields no post", async () => {
   expect(
-    parsePostPage(
+    await parsePostPage(
       '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="  " role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
     ),
   ).toBeNull();
@@ -239,7 +253,7 @@ const SHELL =
   '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">';
 
 test("a compact post keeps the full text without collapse controls", async () => {
-  const caption = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"))?.caption ?? "";
+  const caption = (await parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html")))?.caption ?? "";
   expect(caption.startsWith("2020 年，我開始利用下班時間寫免費電子報《曼報 Manny’s Newsletter》，至今累積超過 4.3 萬人訂閱，平均開信率超過 40%。\n\n兩年後，我又找了另一位上班族 Angela，")).toBe(true);
   expect(caption).toContain("「時下熱議的話題」。\n\n不過，關注這些事情超過五年後");
   expect(caption).not.toContain("⋯⋯");
@@ -252,111 +266,111 @@ test("a compact post keeps the full text without collapse controls", async () =>
 });
 
 test("english and traditional pages share the post text", async () => {
-  const en = parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html"))?.caption;
-  const zh = parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html"))?.caption;
+  const en = (await parsePostPage(await fixture("post-1Fu5ScGFUZ.en.html")))?.caption;
+  const zh = (await parsePostPage(await fixture("post-1Fu5ScGFUZ.zh-Hant.html")))?.caption;
   expect(en).toBe(zh);
 });
 
 test("an album keeps its post text", async () => {
-  const caption = parsePostPage(await fixture("post-album-3-images.zh-Hant.html"))?.caption ?? "";
+  const caption = (await parsePostPage(await fixture("post-album-3-images.zh-Hant.html")))?.caption ?? "";
   expect(
     caption.startsWith("各位小夥伴們，你們知道後天 6/12（週四）有一場《Kafka相關饅頭營》線上研討會嗎？\n\n就算還不知道也沒關係！"),
   ).toBe(true);
 });
 
-test("collapse controls, breaks, and entities become plain text", () => {
-  const post = parsePostPage(
+test("collapse controls, breaks, and entities become plain text", async () => {
+  const post = await parsePostPage(
     `${SHELL}<div data-testid="post_message" class="_5pbx userContent"><div class="text_exposed_root"><p>a<br /> \u200b<br /> b &amp; <a href="https://l.facebook.com/l.php?u=x">link</a> <span class="_6qdm">🎁</span><span class="text_exposed_hide">...</span><span class="text_exposed_show"> more</span></p><p> c</p></div></div><div>after</div>`,
   );
   expect(post?.caption).toBe("a\n\nb & link 🎁 more\n\nc");
 });
 
-test("nested divs contribute their text without added whitespace", () => {
-  const post = parsePostPage(`${SHELL}<div data-testid="post_message"><div><div>x</div>y</div></div>z`);
+test("nested divs contribute their text without added whitespace", async () => {
+  const post = await parsePostPage(`${SHELL}<div data-testid="post_message"><div><div>x</div>y</div></div>z`);
   expect(post?.caption).toBe("xy");
 });
 
-test("a nested see-more control is removed", () => {
-  const post = parsePostPage(
+test("a nested see-more control is removed", async () => {
+  const post = await parsePostPage(
     `${SHELL}<div data-testid="post_message"><p>a<span class="text_exposed_hide"> <span class="text_exposed_link"><a class="see_more_link"><span class="see_more_link_inner">See more</span></a></span></span>b</p></div>`,
   );
   expect(post?.caption).toBe("ab");
 });
 
-test("entities that look like tags are decoded after tags are stripped", () => {
-  const post = parsePostPage(`${SHELL}<div data-testid="post_message"><p>&lt;b&gt;x&lt;/b&gt;</p></div>`);
+test("entities that look like tags are decoded after tags are stripped", async () => {
+  const post = await parsePostPage(`${SHELL}<div data-testid="post_message"><p>&lt;b&gt;x&lt;/b&gt;</p></div>`);
   expect(post?.caption).toBe("<b>x</b>");
 });
 
-test("three or more breaks collapse to a blank line", () => {
-  const post = parsePostPage(`${SHELL}<div data-testid="post_message"><p>a<br><br><br><br>b</p></div>`);
+test("three or more breaks collapse to a blank line", async () => {
+  const post = await parsePostPage(`${SHELL}<div data-testid="post_message"><p>a<br><br><br><br>b</p></div>`);
   expect(post?.caption).toBe("a\n\nb");
 });
 
-test("post text comes from the post_message div", () => {
-  const post = parsePostPage(
+test("post text comes from the post_message div", async () => {
+  const post = await parsePostPage(
     '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg"><span data-testid="post_message">a</span><div data-testid="post_message">b</div>',
   );
   expect(post?.caption).toBe("b");
 });
 
-test("a hyphenated div does not extend the post text", () => {
-  const post = parsePostPage(
+test("a hyphenated div does not extend the post text", async () => {
+  const post = await parsePostPage(
     `${SHELL}<div><div data-testid="post_message">a<div-x>b</div-x></div>c</div>`,
   );
   expect(post?.caption).toBe("ab");
 });
 
-test("a hyphenated span inside a collapse control is removed with it", () => {
-  const post = parsePostPage(
+test("a hyphenated span inside a collapse control is removed with it", async () => {
+  const post = await parsePostPage(
     `${SHELL}<div data-testid="post_message">a<span class="text_exposed_hide"><span-x>X</span-x></span>b</div>`,
   );
   expect(post?.caption).toBe("ab");
 });
 
-test("a single-quoted attribute does not start the post text", () => {
-  const post = parsePostPage(
+test("a single-quoted attribute does not start the post text", async () => {
+  const post = await parsePostPage(
     `${SHELL}<div title='x data-testid="post_message"'>a</div><div data-testid="post_message">b</div>`,
   );
   expect(post?.caption).toBe("b");
 });
 
-test("a post with no message still returns an empty caption", () => {
-  const post = parsePostPage(SHELL);
+test("a post with no message still returns an empty caption", async () => {
+  const post = await parsePostPage(SHELL);
   expect(post).not.toBeNull();
   expect(post?.caption).toBe("");
 });
 
-test("a data-aria-label does not override the author name", () => {
-  const post = parsePostPage(
+test("a data-aria-label does not override the author name", async () => {
+  const post = await parsePostPage(
     '<img data-aria-label="WRONG" aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.username).toBe("Right");
 });
 
-test("a data-role lookalike is not the author image", () => {
-  const post = parsePostPage(
+test("a data-role lookalike is not the author image", async () => {
+  const post = await parsePostPage(
     '<img data-role="img" aria-label="WRONG" src="https://scontent.x.fbcdn.net/v/t39.30808-1/x.jpg"><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.username).toBe("Right");
 });
 
-test("a hyphenated img tag is not the author", () => {
-  const post = parsePostPage(
+test("a hyphenated img tag is not the author", async () => {
+  const post = await parsePostPage(
     '<img-x aria-label="WRONG" role="img"></img-x><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.username).toBe("Right");
 });
 
-test("a single-quoted attribute does not supply the author", () => {
-  const post = parsePostPage(
+test("a single-quoted attribute does not supply the author", async () => {
+  const post = await parsePostPage(
     `<img alt='x role="img" aria-label="WRONG"' src="https://scontent.x.fbcdn.net/v/t39.30808-1/x.jpg"><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">`,
   );
   expect(post?.username).toBe("Right");
 });
 
-test("the author label is entity-decoded", () => {
-  const post = parsePostPage(
+test("the author label is entity-decoded", async () => {
+  const post = await parsePostPage(
     '<img aria-label="&#x66fc;&#x5831; A&amp;B" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
   );
   expect(post?.username).toBe("曼報 A&B");
@@ -394,7 +408,7 @@ test("a cache miss loads post.php once with the pinned user agent", async () => 
     cache: fakeCache().cache,
     fetcher,
   });
-  expect(post).toEqual(parsePostPage(html));
+  expect(post).toEqual(await parsePostPage(html));
   expect(calls).toHaveLength(1);
   expect(calls[0]?.input).toBe(MANNY_PLUGIN);
   const init = calls[0]?.init;
@@ -602,7 +616,7 @@ test("a cache write failure still returns the post", async () => {
     cache: fake.cache,
     fetcher: () => Promise.resolve(new Response(html, { status: 200 })),
   });
-  expect(post).toEqual(parsePostPage(html));
+  expect(post).toEqual(await parsePostPage(html));
   expect(post).not.toBeNull();
 });
 

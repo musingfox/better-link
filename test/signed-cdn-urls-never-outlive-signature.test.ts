@@ -207,7 +207,7 @@ function facebookFixture(name: string): Promise<string> {
 
 test("a facebook media url redirects to the current signed image", async () => {
   const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
-  const image = parsePostPage(html)?.media[0]?.url;
+  const image = (await parsePostPage(html))?.media[0]?.url;
   if (image === undefined) throw new Error("missing image");
   const app = createWorker({ cache: () => fakeCache().cache });
   const spy = spyOn(globalThis, "fetch").mockImplementation(
@@ -228,7 +228,7 @@ test("a facebook media url redirects to the current signed image", async () => {
 
 test("a facebook media redirect reuses the preview cache", async () => {
   const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
-  const image = parsePostPage(html)?.media[0]?.url;
+  const image = (await parsePostPage(html))?.media[0]?.url;
   if (image === undefined) throw new Error("missing image");
   const fake = fakeCache();
   const app = createWorker({ cache: () => fake.cache });

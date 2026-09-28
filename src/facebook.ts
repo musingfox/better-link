@@ -22,230 +22,98 @@ export function isFacebookPostUrl(url: URL): boolean {
   return false;
 }
 
-function isOpenTag(html: string, at: number, name: string): boolean {
-  const token = `<${name}`;
-  if (!html.startsWith(token, at)) return false;
-  const next = html[at + token.length];
-  return next === " " || next === "\t" || next === "\n" || next === "\r" || next === "/" || next === ">";
+function postImageFrom(src: string): string | null {
+  const parsed = new URL(decodeEntities(src));
+  if (!parsed.pathname.startsWith("/") || !parsed.pathname.includes(POST_IMAGE)) return null;
+  return cdnUrl(parsed.href, CDN_ORIGIN);
 }
 
-function findOpenTag(html: string, name: string, from: number): number {
-  const token = `<${name}`;
-  let i = from;
-  while (i < html.length) {
-    const at = html.indexOf(token, i);
-    if (at < 0) return -1;
-    if (isOpenTag(html, at, name)) return at;
-    i = at + token.length;
-  }
-  return -1;
-}
-
-function tagEnd(html: string, at: number): number {
-  let i = at;
-  while (i < html.length) {
-    const c = html[i];
-    if (c === '"' || c === "'") {
-      const end = html.indexOf(c, i + 1);
-      if (end < 0) return html.indexOf(">", i);
-      i = end + 1;
-      continue;
-    }
-    if (c === ">") return i;
-    i += 1;
-  }
-  return -1;
-}
-
-function attr(tag: string, name: string): string | null {
-  let i = 0;
-  while (i < tag.length && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") {
-    i += 1;
-  }
-  while (i < tag.length) {
-    while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r" || tag[i] === "/")) {
-      i += 1;
-    }
-    if (i >= tag.length || tag[i] === ">") return null;
-    const nameStart = i;
-    while (
-      i < tag.length &&
-      tag[i] !== "=" &&
-      tag[i] !== " " &&
-      tag[i] !== "\t" &&
-      tag[i] !== "\n" &&
-      tag[i] !== "\r" &&
-      tag[i] !== ">" &&
-      tag[i] !== "/"
-    ) {
-      i += 1;
-    }
-    const found = tag.slice(nameStart, i);
-    while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
-    if (i >= tag.length || tag[i] !== "=") continue;
-    i += 1;
-    while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
-    const quote = tag[i];
-    if (i >= tag.length || (quote !== '"' && quote !== "'")) {
-      while (i < tag.length && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") {
-        i += 1;
-      }
-      continue;
-    }
-    i += 1;
-    const valueStart = i;
-    const valueEnd = tag.indexOf(quote, i);
-    if (valueEnd < 0) return null;
-    if (found === name) return tag.slice(valueStart, valueEnd);
-    i = valueEnd + 1;
-  }
-  return null;
-}
-
-function authorName(html: string): string | null {
-  let i = 0;
-  while (i < html.length) {
-    const at = findOpenTag(html, "img", i);
-    if (at < 0) return null;
-    const end = tagEnd(html, at);
-    if (end < 0) return null;
-    const tag = html.slice(at, end + 1);
-    i = end + 1;
-    if (attr(tag, "role") !== "img") continue;
-    const label = attr(tag, "aria-label");
-    if (label === null) return null;
-    const name = decodeEntities(label).trim();
-    return name === "" ? null : name;
-  }
-  return null;
-}
-
-function isDivTagAt(html: string, at: number): boolean {
-  return isOpenTag(html, at, "div");
-}
-
-function postMessage(html: string): string | null {
-  const marker = 'data-testid="post_message"';
-  let from = 0;
-  while (from < html.length) {
-    const at = html.indexOf(marker, from);
-    if (at < 0) return null;
-    const open = html.lastIndexOf("<", at);
-    const start = open < 0 ? -1 : tagEnd(html, open);
-    if (open < 0 || !isDivTagAt(html, open) || start < at) {
-      from = at + marker.length;
-      continue;
-    }
-    if (attr(html.slice(open, start + 1), "data-testid") !== "post_message") {
-      from = at + marker.length;
-      continue;
-    }
-    let depth = 1;
-    let i = start + 1;
-    while (i < html.length) {
-      const nextOpen = findOpenTag(html, "div", i);
-      const nextClose = html.indexOf("</div>", i);
-      if (nextClose < 0) return null;
-      if (nextOpen >= 0 && nextOpen < nextClose) {
-        depth += 1;
-        i = nextOpen + 4;
-      } else {
-        depth -= 1;
-        if (depth === 0) return html.slice(start + 1, nextClose);
-        i = nextClose + 6;
-      }
-    }
-    return null;
-  }
-  return null;
-}
-
-function removeExposedHide(html: string): string {
-  const marker = '<span class="text_exposed_hide"';
-  let out = "";
-  let i = 0;
-  while (i < html.length) {
-    const at = html.indexOf(marker, i);
-    if (at < 0) return out + html.slice(i);
-    out += html.slice(i, at);
-    const start = tagEnd(html, at);
-    if (start < 0) return out + html.slice(at);
-    let depth = 1;
-    let j = start + 1;
-    let end = -1;
-    while (j < html.length) {
-      const nextOpen = findOpenTag(html, "span", j);
-      const nextClose = html.indexOf("</span>", j);
-      if (nextClose < 0) break;
-      if (nextOpen >= 0 && nextOpen < nextClose) {
-        depth += 1;
-        j = nextOpen + 5;
-      } else {
-        depth -= 1;
-        j = nextClose + 7;
-        if (depth === 0) {
-          end = j;
-          break;
-        }
-      }
-    }
-    if (end < 0) return out + html.slice(at);
-    i = end;
-  }
-  return out;
-}
-
-function captionOf(html: string): string {
-  const inner = postMessage(html);
-  if (inner === null) return "";
-  const text = removeExposedHide(inner)
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]*>/g, "");
-  return decodeEntities(text)
+function captionText(closed: boolean, parts: string[]): string {
+  if (!closed) return "";
+  return decodeEntities(parts.join(""))
     .replace(/\u200b/g, "")
     .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-function postImageUrl(html: string): string | null {
-  let i = 0;
-  while (i < html.length) {
-    const at = findOpenTag(html, "img", i);
-    if (at < 0) return null;
-    const end = tagEnd(html, at);
-    if (end < 0) return null;
-    const tag = html.slice(at, end + 1);
-    i = end + 1;
-    const src = attr(tag, "src");
-    if (src === null) continue;
-    let parsed: URL;
-    try {
-      parsed = new URL(decodeEntities(src));
-    } catch {
-      continue;
-    }
-    if (!parsed.pathname.startsWith("/") || !parsed.pathname.includes(POST_IMAGE)) continue;
-    try {
-      return cdnUrl(parsed.href, CDN_ORIGIN);
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-export function parsePostPage(html: string): Post | null {
+export async function parsePostPage(html: string): Promise<Post | null> {
+  let author: string | null | undefined;
+  let image: string | null = null;
+  let phase: "before" | "inside" | "after" = "before";
+  let closed = false;
+  let hide = 0;
+  const parts: string[] = [];
   try {
-    const username = authorName(html);
-    if (username === null) return null;
-    const image = postImageUrl(html);
-    if (image === null) return null;
-    return { username, caption: captionOf(html), media: [{ kind: "image", url: image }] };
+    await new HTMLRewriter()
+      .on('img[role="img"]', {
+        element(element) {
+          if (author !== undefined) return;
+          try {
+            author = element.getAttribute("aria-label");
+          } catch {
+            author = null;
+          }
+        },
+      })
+      .on("img", {
+        element(element) {
+          if (image !== null) return;
+          try {
+            const src = element.getAttribute("src");
+            if (src === null) return;
+            const url = postImageFrom(src);
+            if (url !== null) image = url;
+          } catch {
+            // An unparseable src is skipped; a throw would reject the whole page.
+          }
+        },
+      })
+      .on('div[data-testid="post_message"]', {
+        element(element) {
+          if (phase !== "before") return;
+          phase = "inside";
+          element.onEndTag(() => {
+            phase = "after";
+            closed = true;
+          });
+        },
+        text(chunk) {
+          if (phase !== "inside" || hide !== 0 || chunk.text.length === 0) return;
+          parts.push(chunk.text);
+        },
+      })
+      .on("span.text_exposed_hide", {
+        element(element) {
+          if (phase !== "inside") return;
+          hide += 1;
+          element.onEndTag(() => {
+            hide -= 1;
+          });
+        },
+      })
+      .on("br", {
+        element() {
+          if (phase === "inside" && hide === 0) parts.push("\n");
+        },
+      })
+      .on("p", {
+        element(element) {
+          if (phase !== "inside") return;
+          element.onEndTag(() => {
+            if (phase === "inside" && hide === 0) parts.push("\n\n");
+          });
+        },
+      })
+      .transform(new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } }))
+      .arrayBuffer();
   } catch {
     return null;
   }
+  if (author === undefined || author === null || image === null) return null;
+  const username = decodeEntities(author).trim();
+  if (username === "") return null;
+  return { username, caption: captionText(closed, parts), media: [{ kind: "image", url: image }] };
 }
 
 function cacheKey(origin: string, canonical: URL): string {
@@ -272,7 +140,7 @@ export async function facebookPost(
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) return null;
-    const post = parsePostPage(await response.text());
+    const post = await parsePostPage(await response.text());
     if (!post) return null;
     await deps.cache
       .put(
