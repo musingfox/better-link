@@ -2,7 +2,7 @@ import { INSTAGRAM_HOSTS } from "./clean";
 
 export type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
 
-const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "m.facebook.com"]);
+export const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "m.facebook.com"]);
 
 const SHARE_PATH = /^\/share\/[^/]+/;
 const HOP_CAP = 3;
