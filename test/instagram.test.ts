@@ -30,6 +30,47 @@ test("a minimal GraphImage embed keeps the image query and an empty caption", ()
   });
 });
 
+const EGG_CAPTION =
+  "Let’s set a world record together and get the most liked post on Instagram. Beating the current world record held by Kylie Jenner (18 million)! We got this 🙌\n\n#LikeTheEgg #EggSoldiers #EggGang";
+
+function graphImage(inner: string): string {
+  return `<div data-media-type="GraphImage"><span class="UsernameText">u</span><img class="EmbeddedMediaImage" src="https://scontent.cdninstagram.com/v/p.jpg">${inner}</div>`;
+}
+
+test("a single-image embed keeps the decoded caption", async () => {
+  const post = parseEmbed(await fixture("embed-BsOGulcndj-.html"));
+  expect(post?.caption).toBe(EGG_CAPTION);
+  expect(EGG_CAPTION.includes("\u2019")).toBe(true);
+});
+
+test("a page with no caption div yields an empty caption", () => {
+  const post = parseEmbed(
+    '<div data-media-type="GraphImage"><span class="UsernameText">a_b</span><img class="EmbeddedMediaImage" alt="x" src="https://scontent-xyz.cdninstagram.com/v/p.jpg?a=1&amp;oe=ABC" srcset="https://other.example/s.jpg 640w"></div>',
+  );
+  expect(post?.caption).toBe("");
+});
+
+test("caption text drops the username, turns breaks into newlines, and keeps hashtag text", () => {
+  const post = parseEmbed(
+    graphImage(
+      '<div class="Caption"><a class="CaptionUsername" href="/u/">u</a><br /><br />hi<br/>there <a href="/explore/tags/x/">#x</a><div class="CaptionComments">3 comments</div></div>',
+    ),
+  );
+  expect(post?.caption).toBe("hi\nthere #x");
+});
+
+test("caption tags are stripped before entities are decoded", () => {
+  const post = parseEmbed(
+    graphImage('<div class="Caption"><a class="CaptionUsername">u</a>I &lt;3 &quot;eggs&quot; &amp; &#064;bob</div>'),
+  );
+  expect(post?.caption).toBe('I <3 "eggs" & @bob');
+});
+
+test("caption hex and decimal character references are decoded", () => {
+  const post = parseEmbed(graphImage('<div class="Caption">a&#x1F64C;b&#39;c</div>'));
+  expect(post?.caption).toBe("a🙌b'c");
+});
+
 test("saved embed fixtures do not contain session tokens", async () => {
   const dir = new URL("./fixtures/instagram/", import.meta.url);
   const names = await readdir(fileURLToPath(dir.href));

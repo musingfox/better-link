@@ -64,6 +64,22 @@ function embeddedImageSrc(html: string): string | null {
   return match ? decodeEntities(match[1]) : null;
 }
 
+function captionOf(html: string): string {
+  const open = '<div class="Caption">';
+  const at = html.indexOf(open);
+  if (at < 0) return "";
+  const start = at + open.length;
+  const comments = html.indexOf('<div class="CaptionComments"', start);
+  const end = comments >= 0 ? comments : html.indexOf("</div>", start);
+  if (end < 0) return "";
+  const region = html
+    .slice(start, end)
+    .replace(/<a class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "");
+  return decodeEntities(region).trim();
+}
+
 function mediaUrlOf(html: string): string | null {
   const src = embeddedImageSrc(html);
   if (src === null) return null;
@@ -80,7 +96,7 @@ export function parseEmbed(html: string): Post | null {
     if (!username) return null;
     const mediaUrl = mediaUrlOf(html);
     if (mediaUrl === null) return null;
-    return { username, caption: "", mediaUrl };
+    return { username, caption: captionOf(html), mediaUrl };
   } catch {
     return null;
   }
