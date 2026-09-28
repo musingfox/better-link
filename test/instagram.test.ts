@@ -71,6 +71,54 @@ test("caption hex and decimal character references are decoded", () => {
   expect(post?.caption).toBe("a🙌b'c");
 });
 
+test("a carousel embed is not a single image", async () => {
+  expect(parseEmbed(await fixture("embed-DOBXTYNklfi.html"))).toBeNull();
+});
+
+test("a video embed is not a single image", async () => {
+  expect(parseEmbed(await fixture("embed-DJvkjAlvNc8.html"))).toBeNull();
+});
+
+test("a broken embed page yields no post", async () => {
+  expect(parseEmbed(await fixture("embed-B7Y6Y3dF9sq.html"))).toBeNull();
+});
+
+test("a watch-on-instagram page without an image yields no post", () => {
+  expect(
+    parseEmbed(
+      '<div data-media-type="GraphImage"><span class="UsernameText">u</span><div class="WatchOnInstagram">Watch on Instagram</div></div>',
+    ),
+  ).toBeNull();
+});
+
+test("a graph image without an account name yields no post", () => {
+  expect(
+    parseEmbed(
+      '<div data-media-type="GraphImage"><img class="EmbeddedMediaImage" src="https://scontent.cdninstagram.com/v/p.jpg"></div>',
+    ),
+  ).toBeNull();
+});
+
+test("a graph image with an empty account name yields no post", () => {
+  expect(
+    parseEmbed(
+      '<div data-media-type="GraphImage"><span class="UsernameText"></span><img class="EmbeddedMediaImage" src="https://scontent.cdninstagram.com/v/p.jpg"></div>',
+    ),
+  ).toBeNull();
+});
+
+test("a graph image whose image source is not a url yields no post", () => {
+  expect(
+    parseEmbed(
+      '<div data-media-type="GraphImage"><span class="UsernameText">u</span><img class="EmbeddedMediaImage" src="not a url"></div>',
+    ),
+  ).toBeNull();
+});
+
+test("an empty page yields no post", () => {
+  expect(parseEmbed("")).toBeNull();
+});
+
 test("saved embed fixtures do not contain session tokens", async () => {
   const dir = new URL("./fixtures/instagram/", import.meta.url);
   const names = await readdir(fileURLToPath(dir.href));
