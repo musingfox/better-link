@@ -402,6 +402,11 @@ test("caption entities are decoded once", async () => {
   expect(post?.caption).toBe("&lt;b&gt;");
 });
 
+test("a paragraph closed by its parent adds no blank line", async () => {
+  const post = await parsePostPage(`${SHELL}<div data-testid="post_message"><div><p>a</div>b</div>`);
+  expect(post?.caption).toBe("ab");
+});
+
 test("an unterminated message tag stays within the cpu budget", async () => {
   const page = SHELL + "<div " + 'data-testid="post_message" '.repeat(4000);
   const warmup = await parsePostPage(page);

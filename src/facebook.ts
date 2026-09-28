@@ -100,8 +100,9 @@ export async function parsePostPage(html: string): Promise<Post | null> {
       .on("p", {
         element(element) {
           if (phase !== "inside") return;
-          element.onEndTag(() => {
-            if (phase === "inside" && hide === 0) parts.push("\n\n");
+          element.onEndTag((end) => {
+            if (end.name !== "p" || phase !== "inside" || hide !== 0) return;
+            parts.push("\n\n");
           });
         },
       })
