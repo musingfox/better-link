@@ -240,6 +240,27 @@ expect_has \
   '<meta property="og:video" content="http://127.0.0.1:8799/media/DJvkjAlvNc8/1">' \
   'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
 
+expect_has \
+  'http://127.0.0.1:8799/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol' \
+  200 \
+  content-type \
+  exact \
+  'text/html; charset=utf-8' \
+  '<meta property="og:image" content="http://127.0.0.1:8799/media/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol">' \
+  'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
+
+expect_has \
+  'http://127.0.0.1:8799/media/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol' \
+  302 \
+  location \
+  prefix \
+  'https://scontent.xx.fbcdn.net/v/t39.30808-6/' \
+  - \
+  'Mozilla/5.0' \
+  cache-control \
+  exact \
+  'no-store'
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
