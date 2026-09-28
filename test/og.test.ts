@@ -89,3 +89,105 @@ test("a caption that looks like markup is not emitted as a script tag", () => {
   });
   expect(html).not.toContain("<script>");
 });
+
+const videoPage = {
+  title: "@v",
+  description: "hi",
+  url: "https://www.instagram.com/p/V/",
+  video: { url: "https://bl.example/media/V/1", width: 720, height: 1280 },
+};
+
+const imagePage = {
+  title: "@egg",
+  description: "hi",
+  image: "https://bl.example/media/X/1",
+  url: "https://www.instagram.com/p/X/",
+};
+
+const imagePageBeforeVideo = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>@egg</title>
+<meta property="og:title" content="@egg">
+<meta property="og:description" content="hi">
+<meta property="og:image" content="https://bl.example/media/X/1">
+<meta property="og:url" content="https://www.instagram.com/p/X/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="@egg">
+<meta name="twitter:image" content="https://bl.example/media/X/1">
+<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/X/">
+</head>
+<body>
+<a href="https://www.instagram.com/p/X/">https://www.instagram.com/p/X/</a>
+</body>
+</html>
+`;
+
+test("a video preview lists each player tag once", () => {
+  const html = renderOgPage(videoPage);
+  const fragments = [
+    '<meta property="og:video" content="https://bl.example/media/V/1">',
+    '<meta property="og:video:secure_url" content="https://bl.example/media/V/1">',
+    '<meta property="og:video:type" content="video/mp4">',
+    '<meta property="og:video:width" content="720">',
+    '<meta property="og:video:height" content="1280">',
+    '<meta name="twitter:card" content="player">',
+    '<meta name="twitter:player:width" content="720">',
+    '<meta name="twitter:player:height" content="1280">',
+    '<meta name="twitter:player:stream" content="https://bl.example/media/V/1">',
+    '<meta name="twitter:player:stream:content_type" content="video/mp4">',
+    "<title>@v</title>",
+    '<meta property="og:title" content="@v">',
+    '<meta property="og:description" content="hi">',
+    '<meta property="og:url" content="https://www.instagram.com/p/V/">',
+    '<meta name="twitter:title" content="@v">',
+    '<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/V/">',
+    '<a href="https://www.instagram.com/p/V/">https://www.instagram.com/p/V/</a>',
+  ];
+  for (const fragment of fragments) {
+    expect(occurrences(html, fragment)).toBe(1);
+  }
+});
+
+test("a video preview omits image cards", () => {
+  const html = renderOgPage(videoPage);
+  expect(html).not.toContain("og:image");
+  expect(html).not.toContain("twitter:image");
+  expect(html).not.toContain("summary_large_image");
+});
+
+test("an image preview keeps each existing tag once and omits video tags", () => {
+  const html = renderOgPage(imagePage);
+  const fragments = [
+    "<title>@egg</title>",
+    '<meta property="og:title" content="@egg">',
+    '<meta property="og:description" content="hi">',
+    '<meta property="og:image" content="https://bl.example/media/X/1">',
+    '<meta property="og:url" content="https://www.instagram.com/p/X/">',
+    '<meta name="twitter:card" content="summary_large_image">',
+    '<meta name="twitter:title" content="@egg">',
+    '<meta name="twitter:image" content="https://bl.example/media/X/1">',
+    '<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/X/">',
+    '<a href="https://www.instagram.com/p/X/">https://www.instagram.com/p/X/</a>',
+  ];
+  for (const fragment of fragments) {
+    expect(occurrences(html, fragment)).toBe(1);
+  }
+  expect(html).not.toContain("og:video");
+  expect(html).not.toContain("twitter:player");
+});
+
+test("ampersands in a video url are escaped in og:video", () => {
+  const html = renderOgPage({
+    ...videoPage,
+    video: { url: "https://bl.example/media/V/1?a=1&b=2", width: 720, height: 1280 },
+  });
+  expect(html).toContain(
+    '<meta property="og:video" content="https://bl.example/media/V/1?a=1&amp;b=2">',
+  );
+});
+
+test("an image preview is byte-identical to the page captured before video tags", () => {
+  expect(renderOgPage(imagePage)).toBe(imagePageBeforeVideo);
+});

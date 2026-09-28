@@ -15,16 +15,47 @@ function truncateDescription(description: string): string {
   return points.slice(0, DESCRIPTION_LIMIT).join("") + "...";
 }
 
-export function renderOgPage(meta: {
+type PageMedia =
+  | { kind: "image"; url: string }
+  | { kind: "video"; url: string; width: number; height: number };
+
+type OgPageMeta = {
   title: string;
   description: string;
-  image: string;
   url: string;
-}): string {
+} & (
+  | { image: string }
+  | { video: { url: string; width: number; height: number } }
+  | { media: PageMedia }
+);
+
+function pageMedia(meta: OgPageMeta): PageMedia {
+  if ("media" in meta) return meta.media;
+  if ("video" in meta) return { kind: "video", ...meta.video };
+  return { kind: "image", url: meta.image };
+}
+
+export function renderOgPage(meta: OgPageMeta): string {
   const title = escapeHtml(meta.title);
   const description = escapeHtml(truncateDescription(meta.description));
-  const image = escapeHtml(meta.image);
   const url = escapeHtml(meta.url);
+  const media = pageMedia(meta);
+  const ogMedia =
+    media.kind === "video"
+      ? `<meta property="og:video" content="${escapeHtml(media.url)}">
+<meta property="og:video:secure_url" content="${escapeHtml(media.url)}">
+<meta property="og:video:type" content="video/mp4">
+<meta property="og:video:width" content="${escapeHtml(String(media.width))}">
+<meta property="og:video:height" content="${escapeHtml(String(media.height))}">`
+      : `<meta property="og:image" content="${escapeHtml(media.url)}">`;
+  const twitterMedia =
+    media.kind === "video"
+      ? `<meta name="twitter:player:width" content="${escapeHtml(String(media.width))}">
+<meta name="twitter:player:height" content="${escapeHtml(String(media.height))}">
+<meta name="twitter:player:stream" content="${escapeHtml(media.url)}">
+<meta name="twitter:player:stream:content_type" content="video/mp4">`
+      : `<meta name="twitter:image" content="${escapeHtml(media.url)}">`;
+  const card = media.kind === "video" ? "player" : "summary_large_image";
   return `<!doctype html>
 <html>
 <head>
@@ -32,11 +63,11 @@ export function renderOgPage(meta: {
 <title>${title}</title>
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${description}">
-<meta property="og:image" content="${image}">
+${ogMedia}
 <meta property="og:url" content="${url}">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:card" content="${card}">
 <meta name="twitter:title" content="${title}">
-<meta name="twitter:image" content="${image}">
+${twitterMedia}
 <meta http-equiv="refresh" content="0; url=${url}">
 </head>
 <body>
