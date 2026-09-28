@@ -526,3 +526,80 @@ test("a crawler still gets not found for a host without a dot", async () => {
   expect(res.status).toBe(404);
   expect(await res.text()).toBe("not found");
 });
+
+const CHROME =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+
+test("a desktop browser on x.com gets the cleaned original", async () => {
+  const res = await call("https://bl.example/x.com/jack/status/20?s=20&utm_source=x", {
+    "User-Agent": CHROME,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://x.com/jack/status/20?s=20");
+});
+
+test("a share link with no user agent stays on the cleaned original", async () => {
+  const res = await call("https://bl.example/www.tiktok.com/@scout2015/video/6718335390845095173");
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe(
+    "https://www.tiktok.com/@scout2015/video/6718335390845095173",
+  );
+});
+
+test("an empty user agent stays on the cleaned original", async () => {
+  const res = await call("https://bl.example/bsky.app/profile/bsky.app/post/3mw2cdr44fc2a", {
+    "User-Agent": "",
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://bsky.app/profile/bsky.app/post/3mw2cdr44fc2a");
+});
+
+test("a crawler on facebook gets the cleaned original", async () => {
+  const res = await call(
+    "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr",
+    { "User-Agent": DISCORD },
+  );
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.facebook.com/reel/1016339268064528");
+});
+
+test("a crawler on youtube gets the cleaned original", async () => {
+  const res = await call("https://bl.example/www.youtube.com/watch?v=abc&si=zz", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.youtube.com/watch?v=abc");
+});
+
+test("a crawler on a fix service host gets that host back", async () => {
+  const res = await call("https://bl.example/fixupx.com/jack/status/20", { "User-Agent": DISCORD });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://fixupx.com/jack/status/20");
+});
+
+test("a crawler on an unlisted bluesky host gets the cleaned original", async () => {
+  const res = await call("https://bl.example/www.bsky.app/profile/x/post/y", {
+    "User-Agent": DISCORD,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.bsky.app/profile/x/post/y");
+});
+
+test("a crawler on a lookalike host gets the cleaned original", async () => {
+  const res = await call("https://bl.example/box.com/x", { "User-Agent": DISCORD });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://box.com/x");
+});
+
+test("a desktop browser on a listed host root gets the cleaned original", async () => {
+  const res = await call("https://bl.example/x.com/", { "User-Agent": CHROME });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://x.com/");
+});
+
+test("a desktop browser still gets not found when the host has no slash", async () => {
+  const res = await call("https://bl.example/x.com", { "User-Agent": CHROME });
+  expect(res.status).toBe(404);
+  expect(await res.text()).toBe("not found");
+  expect(res.headers.get("location")).toBeNull();
+});
