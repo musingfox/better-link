@@ -112,7 +112,7 @@ test("a post with no caption renders an empty og description", async () => {
 
 test("a media url redirects to the current signed cdn url", async () => {
   const html = await fixture("embed-BsOGulcndj-.html");
-  const mediaUrl = parseEmbed(html)?.mediaUrl;
+  const mediaUrl = parseEmbed(html)?.media[0]?.url;
   if (mediaUrl === undefined) throw new Error("missing media url");
   const app = createWorker({ cache: () => fakeCache().cache });
   const spy = spyOn(globalThis, "fetch").mockImplementation(
@@ -132,7 +132,7 @@ test("a media url redirects to the current signed cdn url", async () => {
 
 test("a media redirect reuses the post cached for the preview", async () => {
   const html = await fixture("embed-BsOGulcndj-.html");
-  const mediaUrl = parseEmbed(html)?.mediaUrl;
+  const mediaUrl = parseEmbed(html)?.media[0]?.url;
   if (mediaUrl === undefined) throw new Error("missing media url");
   const fake = fakeCache();
   const app = createWorker({ cache: () => fake.cache });

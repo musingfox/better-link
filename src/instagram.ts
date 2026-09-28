@@ -1,9 +1,13 @@
 import type { Fetcher } from "./expand";
 
+export type Media =
+  | { kind: "image"; url: string }
+  | { kind: "video"; url: string; width: number; height: number };
+
 export type Post = {
   username: string;
   caption: string;
-  mediaUrl: string;
+  media: Media[];
 };
 
 export interface PostCache {
@@ -87,14 +91,18 @@ function captionOf(html: string): string {
   return decodeEntities(region).trim();
 }
 
-function mediaUrlOf(html: string): string | null {
-  const src = embeddedImageSrc(html);
-  if (src === null) return null;
-  const url = new URL(src);
+function cdnUrl(raw: string): string | null {
+  const url = new URL(raw);
   // Path must stay a path. data: and javascript: pathnames have no leading slash,
   // so prefixing the CDN origin would glue the payload onto the host.
   if (!url.pathname.startsWith("/")) return null;
   return "https://scontent.cdninstagram.com" + url.pathname + url.search;
+}
+
+function mediaUrlOf(html: string): string | null {
+  const src = embeddedImageSrc(html);
+  if (src === null) return null;
+  return cdnUrl(src);
 }
 
 const EMBED_UA = "Go-http-client/1.1";
@@ -104,13 +112,25 @@ export function isShortcode(value: string): boolean {
   return SHORTCODE.test(value);
 }
 
+function isMedia(value: unknown): value is Media {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (record.kind === "image") return typeof record.url === "string";
+  if (record.kind === "video") {
+    return typeof record.url === "string" && typeof record.width === "number" && typeof record.height === "number";
+  }
+  return false;
+}
+
 function isPost(value: unknown): value is Post {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   return (
     typeof record.username === "string" &&
     typeof record.caption === "string" &&
-    typeof record.mediaUrl === "string"
+    Array.isArray(record.media) &&
+    record.media.length > 0 &&
+    record.media.every(isMedia)
   );
 }
 
@@ -160,7 +180,7 @@ export function parseEmbed(html: string): Post | null {
     if (!username) return null;
     const mediaUrl = mediaUrlOf(html);
     if (mediaUrl === null) return null;
-    return { username, caption: captionOf(html), mediaUrl };
+    return { username, caption: captionOf(html), media: [{ kind: "image", url: mediaUrl }] };
   } catch {
     return null;
   }

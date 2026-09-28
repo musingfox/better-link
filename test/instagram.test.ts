@@ -8,6 +8,15 @@ import { fakeCache } from "./support/fake-cache";
 const EGG_MEDIA =
   "https://scontent.cdninstagram.com/v/t51.82787-15/625727639_18338153224242257_3827527793310630488_n.jpg?stp=dst-jpg_e35_tt6&_nc_cat=104&ig_cache_key=MTk0OTUyNTI3ODI4MTU1NDE3NA%3D%3D.3-ccb7-5&ccb=7-5&_nc_sid=58cdad&efg=eyJ2ZW5jb2RlX3RhZyI6IkZFRUQueHBpZHMuNTg0LnNkci5yZWd1bGFyX3Bob3RvLkMzIn0%3D&_nc_ohc=YFKQ7apkKBgQ7kNvwFPu0Kb&_nc_oc=AdpCt06dwZzFQWP2kuK7UAFMK0HuszeeTFaClp9t3JPyJWmjm73K0jYkykuO01tHcww&_nc_zt=23&_nc_ht=scontent-tpe5-1.cdninstagram.com&_nc_gid=xwo3Asg41MB0RjldQ8lgQA&_nc_ss=7360f&oh=00_AQO3J7DVx6YxxYqCZcy3W0xiufLg5WnZQJeoc7uz04uViQ&oe=6ABFE180";
 
+const EGG_CAPTION =
+  "Let’s set a world record together and get the most liked post on Instagram. Beating the current world record held by Kylie Jenner (18 million)! We got this 🙌\n\n#LikeTheEgg #EggSoldiers #EggGang";
+
+const EGG_POST = {
+  username: "world_record_egg",
+  caption: EGG_CAPTION,
+  media: [{ kind: "image" as const, url: EGG_MEDIA }],
+};
+
 const SESSION_TOKEN = /"(csrf_token|token|ajaxpipe_token|compat_iframe_token)":"[^"]+"/;
 const CSRF_COOKIE = /\["csrftoken","[^"]+"/;
 
@@ -16,9 +25,7 @@ function fixture(name: string): Promise<string> {
 }
 
 test("a single-image embed yields the account and the cdninstagram image", async () => {
-  const post = parseEmbed(await fixture("embed-BsOGulcndj-.html"));
-  expect(post?.username).toBe("world_record_egg");
-  expect(post?.mediaUrl).toBe(EGG_MEDIA);
+  expect(parseEmbed(await fixture("embed-BsOGulcndj-.html"))).toEqual(EGG_POST);
 });
 
 test("an image source cannot leak its scheme, userinfo, or port into the media url", () => {
@@ -29,8 +36,16 @@ test("an image source cannot leak its scheme, userinfo, or port into the media u
   expect(parseEmbed(page("https://user:pw@evil.example:8443/x.jpg"))).toEqual({
     username: "u",
     caption: "",
-    mediaUrl: "https://scontent.cdninstagram.com/x.jpg",
+    media: [{ kind: "image", url: "https://scontent.cdninstagram.com/x.jpg" }],
   });
+});
+
+test("a graph image ignores an unreadable contextJSON", () => {
+  const page =
+    '<div data-media-type="GraphImage"><span class="UsernameText">u</span><img class="EmbeddedMediaImage" src="https://scontent-xyz.cdninstagram.com/v/p.jpg"></div><script>{"contextJSON":"{not json"}</script>';
+  expect(parseEmbed(page)?.media).toEqual([
+    { kind: "image", url: "https://scontent.cdninstagram.com/v/p.jpg" },
+  ]);
 });
 
 test("a minimal GraphImage embed keeps the image query and an empty caption", () => {
@@ -40,12 +55,9 @@ test("a minimal GraphImage embed keeps the image query and an empty caption", ()
   expect(post).toEqual({
     username: "a_b",
     caption: "",
-    mediaUrl: "https://scontent.cdninstagram.com/v/p.jpg?a=1&oe=ABC",
+    media: [{ kind: "image", url: "https://scontent.cdninstagram.com/v/p.jpg?a=1&oe=ABC" }],
   });
 });
-
-const EGG_CAPTION =
-  "Let’s set a world record together and get the most liked post on Instagram. Beating the current world record held by Kylie Jenner (18 million)! We got this 🙌\n\n#LikeTheEgg #EggSoldiers #EggGang";
 
 function graphImage(inner: string): string {
   return `<div data-media-type="GraphImage"><span class="UsernameText">u</span><img class="EmbeddedMediaImage" src="https://scontent.cdninstagram.com/v/p.jpg">${inner}</div>`;
@@ -145,11 +157,7 @@ test("a cache miss loads the captioned embed once with the pinned user agent", a
     cache: fakeCache().cache,
     fetcher,
   });
-  expect(post).toEqual({
-    username: "world_record_egg",
-    caption: EGG_CAPTION,
-    mediaUrl: EGG_MEDIA,
-  });
+  expect(post).toEqual(EGG_POST);
   expect(calls).toHaveLength(1);
   expect(calls[0]?.input).toBe("https://www.instagram.com/p/BsOGulcndj-/embed/captioned/");
   const init = calls[0]?.init;
@@ -180,7 +188,7 @@ test("a cached post is returned without contacting instagram", async () => {
   const stored = {
     username: "cached_user",
     caption: "",
-    mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg?oe=1",
+    media: [{ kind: "image" as const, url: "https://scontent.cdninstagram.com/v/c.jpg?oe=1" }],
   };
   const fake = fakeCache();
   fake.entries.set(
@@ -308,11 +316,7 @@ test("a cache write failure still returns the post", async () => {
     cache: fake.cache,
     fetcher: () => Promise.resolve(new Response(html, { status: 200 })),
   });
-  expect(post).toEqual({
-    username: "world_record_egg",
-    caption: EGG_CAPTION,
-    mediaUrl: EGG_MEDIA,
-  });
+  expect(post).toEqual(EGG_POST);
 });
 
 test("an upstream 403 yields no post", async () => {

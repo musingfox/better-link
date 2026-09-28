@@ -107,10 +107,11 @@ async function mediaRedirect(
   const match = MEDIA_PATH.exec(requestUrl.pathname);
   if (match?.[1] === undefined || !isShortcode(match[1])) return text(404, "not found");
   const post = await loadPost(match[1], requestUrl.origin, deps);
-  if (!post) return text(404, "not found");
+  const item = post?.media[0];
+  if (!post || item === undefined) return text(404, "not found");
   return new Response(null, {
     status: 302,
-    headers: { Location: post.mediaUrl, "Cache-Control": "no-store" },
+    headers: { Location: item.url, "Cache-Control": "no-store" },
   });
 }
 
