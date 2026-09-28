@@ -104,6 +104,16 @@ export function isShortcode(value: string): boolean {
   return SHORTCODE.test(value);
 }
 
+function isPost(value: unknown): value is Post {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.username === "string" &&
+    typeof record.caption === "string" &&
+    typeof record.mediaUrl === "string"
+  );
+}
+
 export async function instagramPost(
   shortcode: string,
   deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
@@ -113,7 +123,11 @@ export async function instagramPost(
   const key = `${deps.origin}/__cache/instagram/${shortcode}`;
   try {
     const hit = await deps.cache.match(key);
-    if (hit) return (await hit.json()) as Post;
+    if (hit) {
+      const body: unknown = await hit.json();
+      if (!isPost(body)) return null;
+      return body;
+    }
     const response = await fetcher(`https://www.instagram.com/p/${shortcode}/embed/captioned/`, {
       headers: { "User-Agent": EMBED_UA },
       redirect: "manual",

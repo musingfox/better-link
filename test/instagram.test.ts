@@ -219,6 +219,38 @@ test("a cached body that is not json yields no post and does not fetch", async (
   expect(calls).toHaveLength(0);
 });
 
+test("a cached body that is not a post yields no post and does not fetch", async () => {
+  const bodies: unknown[] = [
+    {},
+    { username: 1, caption: "", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
+    { username: "u", caption: null, mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
+    { username: "u", caption: "", mediaUrl: 1 },
+    { caption: "", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
+    { username: "u", mediaUrl: "https://scontent.cdninstagram.com/v/c.jpg" },
+    { username: "u", caption: "" },
+  ];
+  for (const body of bodies) {
+    const fake = fakeCache();
+    fake.entries.set(
+      "https://bl.example/__cache/instagram/BsOGulcndj-",
+      new Response(JSON.stringify(body)),
+    );
+    const calls: string[] = [];
+    const fetcher: Fetcher = (input) => {
+      calls.push(input);
+      return Promise.resolve(new Response(null, { status: 200 }));
+    };
+    const post = await instagramPost("BsOGulcndj-", {
+      origin: "https://bl.example",
+      cache: fake.cache,
+      fetcher,
+    });
+    expect(post).toBeNull();
+    expect(calls).toHaveLength(0);
+    expect(fake.calls.put).toBe(0);
+  }
+});
+
 function countingFetcher(response: Response | Promise<Response>): {
   fetcher: Fetcher;
   calls: string[];
