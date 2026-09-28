@@ -34,21 +34,28 @@ function previewImage(origin: string, shortcode: string): string {
   return `${origin}/media/${shortcode}/1`;
 }
 
+async function loadPost(
+  shortcode: string,
+  origin: string,
+  deps: { cache: () => PostCache },
+): Promise<Post | null> {
+  try {
+    return await instagramPost(shortcode, {
+      origin,
+      cache: deps.cache(),
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function instagramOg(
   requestUrl: URL,
   cleaned: URL,
   shortcode: string,
   deps: { cache: () => PostCache },
 ): Promise<Response> {
-  let post: Post | null = null;
-  try {
-    post = await instagramPost(shortcode, {
-      origin: requestUrl.origin,
-      cache: deps.cache(),
-    });
-  } catch {
-    post = null;
-  }
+  const post = await loadPost(shortcode, requestUrl.origin, deps);
   if (!post) return Response.redirect(cleaned.href, 302);
   return new Response(
     renderOgPage({
@@ -99,15 +106,7 @@ async function mediaRedirect(
 ): Promise<Response> {
   const match = MEDIA_PATH.exec(requestUrl.pathname);
   if (match?.[1] === undefined || !isShortcode(match[1])) return text(404, "not found");
-  let post: Post | null = null;
-  try {
-    post = await instagramPost(match[1], {
-      origin: requestUrl.origin,
-      cache: deps.cache(),
-    });
-  } catch {
-    post = null;
-  }
+  const post = await loadPost(match[1], requestUrl.origin, deps);
   if (!post) return text(404, "not found");
   return new Response(null, {
     status: 302,
