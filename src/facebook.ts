@@ -22,8 +22,39 @@ export function isFacebookPostUrl(url: URL): boolean {
   return false;
 }
 
+function isOpenTag(html: string, at: number, name: string): boolean {
+  const token = `<${name}`;
+  if (!html.startsWith(token, at)) return false;
+  const next = html[at + token.length];
+  return next === " " || next === "\t" || next === "\n" || next === "\r" || next === "/" || next === ">";
+}
+
+function findOpenTag(html: string, name: string, from: number): number {
+  const token = `<${name}`;
+  let i = from;
+  while (i < html.length) {
+    const at = html.indexOf(token, i);
+    if (at < 0) return -1;
+    if (isOpenTag(html, at, name)) return at;
+    i = at + token.length;
+  }
+  return -1;
+}
+
 function tagEnd(html: string, at: number): number {
-  return html.indexOf(">", at);
+  let i = at;
+  while (i < html.length) {
+    const c = html[i];
+    if (c === '"' || c === "'") {
+      const end = html.indexOf(c, i + 1);
+      if (end < 0) return html.indexOf(">", i);
+      i = end + 1;
+      continue;
+    }
+    if (c === ">") return i;
+    i += 1;
+  }
+  return -1;
 }
 
 function attr(tag: string, name: string): string | null {
@@ -54,7 +85,8 @@ function attr(tag: string, name: string): string | null {
     if (i >= tag.length || tag[i] !== "=") continue;
     i += 1;
     while (i < tag.length && (tag[i] === " " || tag[i] === "\t" || tag[i] === "\n" || tag[i] === "\r")) i += 1;
-    if (i >= tag.length || tag[i] !== '"') {
+    const quote = tag[i];
+    if (i >= tag.length || (quote !== '"' && quote !== "'")) {
       while (i < tag.length && tag[i] !== " " && tag[i] !== "\t" && tag[i] !== "\n" && tag[i] !== "\r" && tag[i] !== ">") {
         i += 1;
       }
@@ -62,7 +94,7 @@ function attr(tag: string, name: string): string | null {
     }
     i += 1;
     const valueStart = i;
-    const valueEnd = tag.indexOf('"', i);
+    const valueEnd = tag.indexOf(quote, i);
     if (valueEnd < 0) return null;
     if (found === name) return tag.slice(valueStart, valueEnd);
     i = valueEnd + 1;
@@ -182,7 +214,7 @@ function captionOf(html: string): string {
 function postImageUrl(html: string): string | null {
   let i = 0;
   while (i < html.length) {
-    const at = html.indexOf("<img", i);
+    const at = findOpenTag(html, "img", i);
     if (at < 0) return null;
     const end = tagEnd(html, at);
     if (end < 0) return null;

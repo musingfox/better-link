@@ -167,6 +167,20 @@ test("a data-src post path is ignored when src is an avatar", () => {
   expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
 });
 
+test("a hyphenated img tag is not a post image", () => {
+  const post = parsePostPage(
+    '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img-x src="https://scontent.x.fbcdn.net/v/t39.30808-6/wrong.jpg"></img-x><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
+});
+
+test("a single-quoted attribute does not supply the post image", () => {
+  const post = parsePostPage(
+    `<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img alt='x src="https://scontent.x.fbcdn.net/v/t39.30808-6/wrong.jpg"' src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">`,
+  );
+  expect(post?.media[0]?.url).toBe("https://scontent.xx.fbcdn.net/v/t39.30808-6/p.jpg");
+});
+
 test("a json-escaped cdn url outside an img tag is ignored", () => {
   expect(
     parsePostPage(
