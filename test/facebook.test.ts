@@ -335,6 +335,107 @@ test("a single-quoted attribute does not start the post text", async () => {
   expect(post?.caption).toBe("b");
 });
 
+test("a single-quoted message attribute starts the post text", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div data-testid='post_message'>a</div><div data-testid="post_message">b</div>`,
+  );
+  expect(post?.caption).toBe("a");
+});
+
+test("a less-than inside an attribute does not start the post text", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div title="a<b" data-testid="post_message">a</div><div data-testid="post_message">b</div>`,
+  );
+  expect(post?.caption).toBe("a");
+});
+
+test("an end tag inside an attribute does not end the post text", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div data-testid="post_message">a<b title="</div>">b</b></div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("a greater-than inside an attribute is not a tag", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div data-testid="post_message">a<b title="x>y">b</b></div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("a single-quoted collapse class is removed", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div data-testid="post_message">a<span class='text_exposed_hide'>X</span>b</div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("an end tag inside a collapse control does not end it", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div data-testid="post_message">a<span class="text_exposed_hide"><b title="</span>">X</b></span>b</div>`,
+  );
+  expect(post?.caption).toBe("ab");
+});
+
+test("an unclosed message contributes no caption", async () => {
+  const post = await parsePostPage(`${SHELL}<div data-testid="post_message">a<p>b</p>`);
+  expect(post).not.toBeNull();
+  expect(post?.caption).toBe("");
+});
+
+test("a message inside a comment, script, or style is ignored", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<!--<div data-testid="post_message">c</div>--><script>var s = '<div data-testid="post_message">s</div>';</script><style>/* <div data-testid="post_message">y</div> */</style><div data-testid="post_message">b</div>`,
+  );
+  expect(post?.caption).toBe("b");
+});
+
+test("a nested message stays inside the outer message", async () => {
+  const post = await parsePostPage(
+    `${SHELL}<div data-testid="post_message">a<div data-testid="post_message">b</div>c</div>`,
+  );
+  expect(post?.caption).toBe("abc");
+});
+
+test("caption entities are decoded once", async () => {
+  const post = await parsePostPage(`${SHELL}<div data-testid="post_message"><p>&amp;lt;b&amp;gt;</p></div>`);
+  expect(post?.caption).toBe("&lt;b&gt;");
+});
+
+test("an unterminated message tag stays within the cpu budget", async () => {
+  const page = SHELL + "<div " + 'data-testid="post_message" '.repeat(4000);
+  const warmup = await parsePostPage(page);
+  expect(warmup === null || warmup.caption === "").toBe(true);
+  const samples: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = performance.now();
+    const post = await parsePostPage(page);
+    samples.push(performance.now() - start);
+    expect(post === null || post.caption === "").toBe(true);
+  }
+  samples.sort((a, b) => a - b);
+  const median = samples[2] ?? 0;
+  console.warn(`unterminated message median ${median} ms`);
+  expect(median).toBeLessThan(10);
+}, 20000);
+
+test("a deeply nested message stays within the cpu budget", async () => {
+  const page =
+    SHELL + '<div data-testid="post_message">' + "<div>".repeat(30000) + "x" + "</div>".repeat(30000) + "</div>";
+  expect((await parsePostPage(page))?.caption).toBe("x");
+  const samples: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = performance.now();
+    const post = await parsePostPage(page);
+    samples.push(performance.now() - start);
+    expect(post?.caption).toBe("x");
+  }
+  samples.sort((a, b) => a - b);
+  const median = samples[2] ?? 0;
+  console.warn(`nested message median ${median} ms`);
+  expect(median).toBeLessThan(10);
+}, 20000);
+
 test("a post with no message still returns an empty caption", async () => {
   const post = await parsePostPage(SHELL);
   expect(post).not.toBeNull();
