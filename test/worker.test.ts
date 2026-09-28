@@ -1,7 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { expect, spyOn, test } from "bun:test";
 import { cleanUrl } from "../src/clean";
-import worker from "../src/index";
+import worker, { createWorker } from "../src/index";
+import { fakeCache } from "./support/fake-cache";
 
 const ctx = {
   waitUntil() {},
@@ -602,4 +603,120 @@ test("a desktop browser still gets not found when the host has no slash", async 
   expect(res.status).toBe(404);
   expect(await res.text()).toBe("not found");
   expect(res.headers.get("location")).toBeNull();
+});
+
+function callWorker(
+  app: { fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> },
+  input: string,
+  headers?: HeadersInit,
+): Promise<Response> {
+  return app.fetch(new Request(input, { headers }), {} as Env, ctx);
+}
+
+test("a desktop browser on an instagram post does not fetch or touch the cache", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(
+      app,
+      "https://bl.example/www.instagram.com/p/BsOGulcndj-/?igsh=x",
+      { "User-Agent": CHROME },
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/BsOGulcndj-/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("an instagram post with no user agent does not fetch or touch the cache", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/?igsh=x");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/BsOGulcndj-/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a discord crawler on an instagram reel does not fetch or touch the cache", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/reel/DJvkjAlvNc8/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/reel/DJvkjAlvNc8/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a discord crawler on an instagram profile does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/world_record_egg/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/world_record_egg/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a discord crawler on an instagram embed path does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/BsOGulcndj-/embed/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/BsOGulcndj-/embed/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a discord crawler on an invalid instagram shortcode does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/bad.id/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/p/bad.id/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
 });

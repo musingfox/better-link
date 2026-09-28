@@ -2,6 +2,7 @@ import { cleanUrl } from "./clean";
 import { isCrawler } from "./crawler";
 import { expandShareLink, isShareable } from "./expand";
 import { fixServiceUrl } from "./fix-services";
+import { type PostCache } from "./instagram";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 
@@ -26,7 +27,11 @@ async function convert(requestUrl: URL): Promise<Response> {
   return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
-function shareRedirect(requestUrl: URL, userAgent: string | null): Response {
+function shareRedirect(
+  requestUrl: URL,
+  userAgent: string | null,
+  _deps: { cache: () => PostCache },
+): Response {
   const match = /^\/([^/]+)(\/.*)$/.exec(requestUrl.pathname);
   if (!match) return text(404, "not found");
   const host = match[1];
@@ -45,10 +50,16 @@ function shareRedirect(requestUrl: URL, userAgent: string | null): Response {
   return Response.redirect((fixed ?? cleaned).href, 302);
 }
 
-export default {
-  async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname === "/") return convert(url);
-    return shareRedirect(url, request.headers.get("User-Agent"));
-  },
-} satisfies ExportedHandler<Env>;
+export function createWorker(deps: { cache: () => PostCache }): {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response>;
+} {
+  return {
+    async fetch(request, _env, _ctx) {
+      const url = new URL(request.url);
+      if (url.pathname === "/") return convert(url);
+      return shareRedirect(url, request.headers.get("User-Agent"), deps);
+    },
+  };
+}
+
+export default createWorker({ cache: () => caches.default }) satisfies ExportedHandler<Env>;

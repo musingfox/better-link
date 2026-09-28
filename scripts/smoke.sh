@@ -104,7 +104,8 @@ expect_resp \
   302 \
   - \
   'https://www.instagram.com/p/ABC/?img_index=2' \
-  -
+  - \
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 
 expect_resp \
   'http://127.0.0.1:8799/example.com/a?q=a%20b&r=c~d&t=x+y&fbclid=1' \
