@@ -376,6 +376,27 @@ test("the author label is entity-decoded", async () => {
   expect(post?.username).toBe("曼報 A&B");
 });
 
+test("markup inside an attribute is not the author", async () => {
+  const post = await parsePostPage(
+    `<div title='<img role="img" aria-label="WRONG">'></div><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">`,
+  );
+  expect(post?.username).toBe("Right");
+});
+
+test("an author image inside a comment, script, or style is ignored", async () => {
+  const post = await parsePostPage(
+    '<!-- <img role="img" aria-label="C"> --><script>var s = \'<img role="img" aria-label="S">\';</script><style>/* <img role="img" aria-label="Y"> */</style><img aria-label="Right" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.username).toBe("Right");
+});
+
+test("the author label is entity-decoded once", async () => {
+  const post = await parsePostPage(
+    '<img aria-label="A&amp;amp;B" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">',
+  );
+  expect(post?.username).toBe("A&amp;B");
+});
+
 test("fixtures carry no session token", async () => {
   const patterns = [
     /"(token|ajaxpipe_token|compat_iframe_token|async_get_token)":"[^"]+"/,
