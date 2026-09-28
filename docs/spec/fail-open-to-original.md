@@ -3,7 +3,7 @@ id: fail-open-to-original
 status: accepted
 scope:
   - "src/**"
-verify: null
+verify: check:bun test ./test/fail-open-to-original.test.ts
 related: [cpu-budget-10ms, tracking-params-cleaned-at-conversion]
 source: better-link-design-spec
 adr: null
@@ -16,4 +16,3 @@ adr: null
 
 違反時不會被察覺：分享連結的主要消費者是 Discord 和 Telegram 的爬蟲，拿到錯誤頁或缺欄位的 og 頁只會默默不顯示預覽；點進連結的人則看到錯誤頁而不是原貼文，通常不會回報。
 
-這條目前沒有可執行的 verify，因為端點還不存在。端點實作後，寫單元測試模擬上游回 403、500 和無媒體的頁面，斷言回應是 302 且 `Location` 等於清理後的原網址，再用 check 執行該測試檔綁定。
