@@ -257,7 +257,7 @@ export function parseEmbed(html: string): Post | null {
       if (mediaUrl === null) return null;
       return { username, caption: captionOf(html), media: [{ kind: "image", url: mediaUrl }] };
     }
-    if (type !== "GraphVideo") return null;
+    if (type !== "GraphVideo" && type !== "GraphSidecar") return null;
     const context = readContext(html);
     if (context === null) return null;
     if (asRecord(asRecord(context)?.context)?.copyright_blocked === true) return null;

@@ -42,9 +42,24 @@ test("a crawler is redirected when the embed page is broken", async () => {
   await expectOpen(() => Promise.resolve(new Response(html, { status: 200 })), 1);
 });
 
-test("a crawler is redirected when the embed is a carousel", async () => {
+test("a crawler receives an og page for a carousel", async () => {
   const html = await fixture("embed-DOBXTYNklfi.html");
-  await expectOpen(() => Promise.resolve(new Response(html, { status: 200 })), 1);
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await app.fetch(
+      new Request("https://bl.example/www.instagram.com/p/DOBXTYNklfi/", { headers: { "User-Agent": DISCORD } }),
+      {} as Env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 test("a crawler is redirected when instagram sends the login page", async () => {

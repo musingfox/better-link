@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { expect, spyOn, test } from "bun:test";
 import { cleanUrl } from "../src/clean";
 import worker, { createWorker } from "../src/index";
+import { parseEmbed } from "../src/instagram";
 import { fakeCache } from "./support/fake-cache";
 
 const ctx = {
@@ -182,18 +183,19 @@ test("a media url is not found when instagram refuses the embed", async () => {
   }
 });
 
-test("a carousel has no single media redirect", async () => {
+test("a carousel's first item redirects to that item's cdn url", async () => {
   const html = await Bun.file(
     new URL("./fixtures/instagram/embed-DOBXTYNklfi.html", import.meta.url),
   ).text();
+  const mediaUrl = parseEmbed(html)?.media[0]?.url;
+  if (mediaUrl === undefined) throw new Error("missing media url");
   const app = createWorker({ cache: () => fakeCache().cache });
   const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
   try {
     const res = await callWorker(app, "https://bl.example/media/DOBXTYNklfi/1");
-    expect(res.status).toBe(404);
-    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
-    expect(await res.text()).toBe("not found");
-    expect(res.headers.get("location")).toBeNull();
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(mediaUrl);
+    expect(res.headers.get("cache-control")).toBe("no-store");
   } finally {
     spy.mockRestore();
   }

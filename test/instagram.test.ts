@@ -97,8 +97,35 @@ test("caption hex and decimal character references are decoded", () => {
   expect(post?.caption).toBe("a🙌b'c");
 });
 
-test("a carousel embed is not a single image", async () => {
-  expect(parseEmbed(await fixture("embed-DOBXTYNklfi.html"))).toBeNull();
+test("a carousel embed yields each child in order", async () => {
+  const post = parseEmbed(await fixture("embed-DOBXTYNklfi.html"));
+  expect(post?.username).toBe("legday");
+  expect(post?.media).toHaveLength(2);
+  expect(post?.media.map((item) => item.kind)).toEqual(["image", "image"]);
+  const first = post?.media[0];
+  const second = post?.media[1];
+  if (first?.kind !== "image" || second?.kind !== "image") throw new Error("expected images");
+  expect(new URL(first.url).pathname).toBe(
+    "/v/t51.82787-15/539843179_18060504932366724_8700303266403112197_n.jpg",
+  );
+  expect(new URL(second.url).pathname).toBe(
+    "/v/t51.82787-15/539561490_18060504941366724_6446626545327929916_n.jpg",
+  );
+  expect(new URL(first.url).host).toBe("scontent.cdninstagram.com");
+  expect(new URL(second.url).host).toBe("scontent.cdninstagram.com");
+});
+
+test("a mixed carousel keeps the image and rebuilds the video host", async () => {
+  const post = parseEmbed(await fixture("embed-DduKfFmDxsG.html"));
+  expect(post?.username).toBe("instagram");
+  expect(post?.media.map((item) => item.kind)).toEqual(["image", "video"]);
+  const video = post?.media[1];
+  if (video?.kind !== "video") throw new Error("expected a video");
+  expect(video.url.startsWith(
+    "https://scontent.cdninstagram.com/o1/v/t16/f2/m84/AQOVXzr0ykV580NCImfvRx1RoBVqKhe7fDqAMNeWRJ_NDDFzJEypa2QKsDO-a-8ptTFUpQHIwIlGiVOwSMNXE3oWJcZkl0Utz8smggE.mp4?",
+  )).toBe(true);
+  expect(video.width).toBe(720);
+  expect(video.height).toBe(900);
 });
 
 test("a video embed yields the playable mp4 on the cdninstagram host", async () => {
