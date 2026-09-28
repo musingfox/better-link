@@ -1433,6 +1433,10 @@ test("a media redirect reuses the carousel preview cache", async () => {
 const MANNY = "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
 const MANNY_SHARE =
   "https://bl.example/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?mibextid=wwXIfr";
+const MANNY_PLUGIN =
+  "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const MANNY_MEDIA =
+  "https://bl.example/media/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
 
 test("a desktop browser on a facebook post does not fetch", async () => {
   const fake = fakeCache();
@@ -1526,6 +1530,110 @@ test("a crawler on a facebook profile does not fetch", async () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://www.facebook.com/mannynewsletter");
     expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+function facebookFixture(name: string): Promise<string> {
+  return Bun.file(new URL(`./fixtures/facebook/${name}`, import.meta.url)).text();
+}
+
+test("a discord crawler receives a facebook og page", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:title" content="曼報 Manny&#39;s Newsletter">');
+    expect(body).toContain("<title>曼報 Manny&#39;s Newsletter</title>");
+    expect(body).toContain(`<meta property="og:image" content="${MANNY_MEDIA}">`);
+    expect(body).toContain(`<meta name="twitter:image" content="${MANNY_MEDIA}">`);
+    expect(body).toContain(`<meta property="og:url" content="${MANNY}">`);
+    expect(body).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(body).toContain(
+      '<meta property="og:description" content="2020 年，我開始利用下班時間寫免費電子報《曼報 Manny’s Newsletter》',
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook story preview points at the cleaned media url", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(
+      app,
+      "https://bl.example/www.facebook.com/story.php?story_fbid=1&id=2&__cft__[0]=A",
+      { "User-Agent": DISCORD },
+    );
+    const body = await res.text();
+    expect(body).toContain(
+      '<meta property="og:image" content="https://bl.example/media/www.facebook.com/story.php?story_fbid=1&amp;id=2">',
+    );
+    expect(body).toContain(
+      '<meta property="og:url" content="https://www.facebook.com/story.php?story_fbid=1&amp;id=2">',
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook album preview names the author and this service's image", async () => {
+  const html = await facebookFixture("post-album-3-images.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(
+      app,
+      "https://bl.example/www.facebook.com/opensource4you/posts/pfbid02CSveUJjD2dvW8WweL7xynJfrnTxQhJZGhpuuFNMFQUrbg3DAeZvTNfnMpjRSKHx8l",
+      { "User-Agent": DISCORD },
+    );
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:title" content="源來適你">');
+    expect(body).toContain(
+      '<meta property="og:image" content="https://bl.example/media/www.facebook.com/opensource4you/posts/pfbid02CSveUJjD2dvW8WweL7xynJfrnTxQhJZGhpuuFNMFQUrbg3DAeZvTNfnMpjRSKHx8l">',
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook post with no caption renders an empty og description", async () => {
+  const html =
+    '<img src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg" aria-label="A" role="img"><img src="https://scontent.x.fbcdn.net/v/t39.30808-6/p.jpg">';
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<meta property="og:description" content="">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a mobile facebook post preview keeps the mobile host in the media url", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(
+      app,
+      "https://bl.example/m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+      { "User-Agent": DISCORD },
+    );
+    const body = await res.text();
+    expect(body).toContain(
+      '<meta property="og:image" content="https://bl.example/media/m.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol">',
+    );
   } finally {
     spy.mockRestore();
   }
