@@ -1,6 +1,6 @@
 import { cleanUrl, INSTAGRAM_HOSTS } from "./clean";
 import { isCrawler } from "./crawler";
-import { expandShareLink, isShareable } from "./expand";
+import { FACEBOOK_HOSTS, expandShareLink, isShareable } from "./expand";
 import { facebookPost, isFacebookPostUrl } from "./facebook";
 import { fixServiceUrl } from "./fix-services";
 import { instagramPost, isShortcode, type Post, type PostCache } from "./instagram";
@@ -142,10 +142,30 @@ async function shareRedirect(
   return Response.redirect((fixed ?? landing).href, 302);
 }
 
+const FACEBOOK_MEDIA = /^\/media\/([^/]+)(\/.*)$/;
+
 async function mediaRedirect(
   requestUrl: URL,
   deps: { cache: () => PostCache },
 ): Promise<Response> {
+  const facebook = FACEBOOK_MEDIA.exec(requestUrl.pathname);
+  if (facebook?.[1] !== undefined && facebook[2] !== undefined && FACEBOOK_HOSTS.has(facebook[1])) {
+    const host = facebook[1];
+    let canonical: URL;
+    try {
+      canonical = new URL(`https://${host}${facebook[2]}${requestUrl.search}`);
+    } catch {
+      return text(404, "not found");
+    }
+    if (canonical.hostname !== host || !isFacebookPostUrl(canonical)) return text(404, "not found");
+    const post = await loadFacebookPost(canonical, requestUrl.origin, deps);
+    const item = post?.media[0];
+    if (!post || item === undefined) return text(404, "not found");
+    return new Response(null, {
+      status: 302,
+      headers: { Location: item.url, "Cache-Control": "no-store" },
+    });
+  }
   const match = MEDIA_PATH.exec(requestUrl.pathname);
   if (match?.[1] === undefined || match[2] === undefined || !isShortcode(match[1])) {
     return text(404, "not found");

@@ -1,5 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
 import { createWorker } from "../src/index";
+import { parsePostPage } from "../src/facebook";
 import { parseEmbed } from "../src/instagram";
 import { fakeCache } from "./support/fake-cache";
 
@@ -189,4 +190,141 @@ test("a facebook og page does not embed a cdn address", async () => {
   } finally {
     spy.mockRestore();
   }
+});
+
+const MANNY_MEDIA =
+  "https://bl.example/media/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const MANNY_SHARE =
+  "https://bl.example/www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol?mibextid=wwXIfr";
+const MANNY_PLUGIN =
+  "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fmannynewsletter%2Fposts%2Fpfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
+const STORY_PLUGIN =
+  "https://www.facebook.com/plugins/post.php?href=https%3A%2F%2Fwww.facebook.com%2Fstory.php%3Fstory_fbid%3D1%26id%3D2";
+
+function facebookFixture(name: string): Promise<string> {
+  return Bun.file(new URL(`./fixtures/facebook/${name}`, import.meta.url)).text();
+}
+
+test("a facebook media url redirects to the current signed image", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const image = parsePostPage(html)?.media[0]?.url;
+  if (image === undefined) throw new Error("missing image");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, MANNY_MEDIA);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(image);
+    expect(res.headers.get("location")?.startsWith("https://scontent.xx.fbcdn.net/v/t39.30808-6/823798199_")).toBe(true);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook media redirect reuses the preview cache", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const image = parsePostPage(html)?.media[0]?.url;
+  if (image === undefined) throw new Error("missing image");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    await call(app, MANNY_SHARE, { "User-Agent": DISCORD });
+    const res = await call(app, MANNY_MEDIA);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(image);
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook story media url redirects to the signed image", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, "https://bl.example/media/www.facebook.com/story.php?story_fbid=1&id=2");
+    expect(res.status).toBe(302);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(STORY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook media url that is not a post is not found", async () => {
+  const urls = [
+    "https://bl.example/media/www.facebook.com/1",
+    "https://bl.example/media/www.facebook.com/story.php",
+    "https://bl.example/media/www.facebook.com/reel/1016339268064528",
+    "https://bl.example/media/www.facebook.com.evil.example/a/posts/1",
+  ];
+  for (const url of urls) {
+    const app = createWorker({ cache: () => fakeCache().cache });
+    const spy = spyOn(globalThis, "fetch").mockImplementation(
+      (() => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch,
+    );
+    try {
+      const res = await call(app, url);
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+      expect(await res.text()).toBe("not found");
+      expect(res.headers.get("location")).toBeNull();
+      expect(spy).toHaveBeenCalledTimes(0);
+    } finally {
+      spy.mockRestore();
+    }
+  }
+});
+
+test("a facebook media url is not found when the post has no image", async () => {
+  const html = await facebookFixture("unavailable.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, MANNY_MEDIA);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("not found");
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a non-facebook media path still uses the instagram route", async () => {
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, "https://bl.example/media/fb/1");
+    expect(res.status).toBe(404);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("https://www.instagram.com/p/fb/embed/captioned/");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook media url is not found when the cache binding throws", async () => {
+  const app = createWorker({
+    cache: () => {
+      throw new Error("no cache");
+    },
+  });
+  const res = await call(app, MANNY_MEDIA);
+  expect(res.status).toBe(404);
+  expect(await res.text()).toBe("not found");
 });
