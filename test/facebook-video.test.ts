@@ -205,3 +205,33 @@ test("a video page keeps an empty caption", async () => {
   const post = await parseVideoPage(`${P()}<div data-testid="post_message">caption</div>`);
   expect(post?.caption).toBe("");
 });
+
+test("the first author image titles the video", async () => {
+  const cases: Array<[string, string]> = [
+    ["video-reel-1016339268064528.zh-Hant.html", "完全娛樂 ShowBiz"],
+    ["video-videos-10153231379946729.zh-Hant.html", "Facebook"],
+    ["video-reel-hd-null-1000023242144087.zh-Hant.html", "Murad Al-Hajj"],
+    ["video-reel-vertical-1000004045579882.zh-Hant.html", "Levi Schechtmann"],
+  ];
+  for (const [name, username] of cases) {
+    expect((await parseVideoPage(await fixture(name)))?.username).toBe(username);
+  }
+});
+
+test("an author label is entity-decoded once", async () => {
+  const named = '<img aria-label="&#x66fc;&#x5831; A&amp;B" role="img">';
+  const doubled = '<img aria-label="A&amp;amp;B" role="img">';
+  expect((await parseVideoPage(P(HD, SD, DIMS, named)))?.username).toBe("曼報 A&B");
+  expect((await parseVideoPage(P(HD, SD, DIMS, doubled)))?.username).toBe("A&amp;B");
+});
+
+test("a blank or missing author yields nothing", async () => {
+  expect(await parseVideoPage(P(HD, SD, DIMS, '<img aria-label="  " role="img">'))).toBeNull();
+  expect(await parseVideoPage(P(HD, SD, DIMS, '<img aria-label="A">'))).toBeNull();
+});
+
+test("comments, scripts, and data-role are not the author", async () => {
+  const author =
+    '<!-- <img role="img" aria-label="C"> --><script>var s=\'<img role="img" aria-label="S">\';</script><img data-role="img" aria-label="W"><img aria-label="Right" role="img">';
+  expect((await parseVideoPage(P(HD, SD, DIMS, author)))?.username).toBe("Right");
+});
