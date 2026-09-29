@@ -235,3 +235,39 @@ test("comments, scripts, and data-role are not the author", async () => {
     '<!-- <img role="img" aria-label="C"> --><script>var s=\'<img role="img" aria-label="S">\';</script><img data-role="img" aria-label="W"><img aria-label="Right" role="img">';
   expect((await parseVideoPage(P(HD, SD, DIMS, author)))?.username).toBe("Right");
 });
+
+function videoSize(post: Awaited<ReturnType<typeof parseVideoPage>>): { width: number; height: number } | null {
+  const item = post?.media[0];
+  if (item?.kind !== "video") return null;
+  return { width: item.width, height: item.height };
+}
+
+test("original upload size is the video size", async () => {
+  const cases: Array<[string, number, number]> = [
+    ["video-reel-1016339268064528.zh-Hant.html", 1920, 1080],
+    ["video-reel-hd-null-1000023242144087.zh-Hant.html", 720, 1280],
+    ["video-reel-vertical-1000004045579882.zh-Hant.html", 1080, 1920],
+  ];
+  for (const [name, width, height] of cases) {
+    expect(videoSize(await parseVideoPage(await fixture(name)))).toEqual({ width, height });
+  }
+});
+
+test("width may be written before height", async () => {
+  expect(videoSize(await parseVideoPage(P(HD, SD, '"original_width":720,"original_height":1280')))).toEqual({
+    width: 720,
+    height: 1280,
+  });
+});
+
+test("a video element does not supply the size", async () => {
+  const post = await parseVideoPage(`<video width="500" height="281"></video>${P()}`);
+  expect(videoSize(post)).toEqual({ width: 1920, height: 1080 });
+});
+
+test("a missing or non-integer size yields nothing", async () => {
+  for (const width of ["0", "-5", "1920.5", '"1920"', "null"]) {
+    expect(await parseVideoPage(P(HD, SD, `"original_width":${width},"original_height":1080`))).toBeNull();
+  }
+  expect(await parseVideoPage(P(HD, SD, '"original_width":1920'))).toBeNull();
+});
