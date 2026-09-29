@@ -426,3 +426,17 @@ test("an unparsable video page is not cached", async () => {
     expect(fake.calls.put).toBe(0);
   }
 });
+
+test("a non-video link never touches the video cache or video.php", async () => {
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 200 }));
+  };
+  const fake = fakeCache();
+  for (const href of [MANNY, "https://www.facebook.com/share/v/1HSGH1rf7o/", "https://fb.watch/abc/"]) {
+    expect(await facebookVideo(new URL(href), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+  }
+  expect(calls).toHaveLength(0);
+  expect(fake.calls.match).toBe(0);
+});
