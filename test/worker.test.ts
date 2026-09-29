@@ -635,13 +635,25 @@ test("an empty user agent stays on the cleaned original", async () => {
   expect(res.headers.get("location")).toBe("https://bsky.app/profile/bsky.app/post/3mw2cdr44fc2a");
 });
 
-test("a crawler on facebook gets the cleaned original", async () => {
-  const res = await call(
-    "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr",
-    { "User-Agent": DISCORD },
-  );
-  expect(res.status).toBe(302);
-  expect(res.headers.get("location")).toBe("https://www.facebook.com/reel/1016339268064528");
+test("a crawler on an unavailable facebook reel gets the cleaned original", async () => {
+  const html = await facebookFixture("video-unavailable.zh-Hant.html");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.facebook.com/reel/1016339268064528");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(
+      "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1016339268064528",
+    );
+    expect(fake.calls.match).toBe(1);
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 test("a crawler on youtube gets the cleaned original", async () => {

@@ -247,6 +247,76 @@ test("a crawler is redirected when the facebook cache binding throws", async () 
   }
 });
 
+const REEL = "https://www.facebook.com/reel/1016339268064528";
+const REEL_SHARE = "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr";
+const VIDEO_PLUGIN_PREFIX = "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2F";
+
+async function expectFacebookVideoOpen(impl: () => Promise<Response>): Promise<ReturnType<typeof fakeCache>> {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(impl as unknown as typeof fetch);
+  try {
+    const res = await app.fetch(new Request(REEL_SHARE, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0]?.[0])).toStartWith(VIDEO_PLUGIN_PREFIX);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(REEL);
+    expect(await res.text()).toBe("");
+  } finally {
+    spy.mockRestore();
+  }
+  return fake;
+}
+
+test("a crawler is redirected when a facebook video is unavailable in traditional chinese", async () => {
+  const html = await facebookFixture("video-unavailable.zh-Hant.html");
+  const fake = await expectFacebookVideoOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+  expect(fake.entries.size).toBe(0);
+});
+
+test("a crawler is redirected when a facebook video embed is blocked", async () => {
+  const html = await facebookFixture("video-embed-blocked.zh-Hant.html");
+  await expectFacebookVideoOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+});
+
+test("a crawler is redirected when a facebook video page is an empty shell", async () => {
+  const html = await facebookFixture("video-empty-shell.html");
+  await expectFacebookVideoOpen(() => Promise.resolve(new Response(html, { status: 200 })));
+});
+
+test("a crawler is redirected when facebook video.php returns 500", async () => {
+  await expectFacebookVideoOpen(() => Promise.resolve(new Response(null, { status: 500 })));
+});
+
+test("a crawler is redirected when facebook video.php redirects to login", async () => {
+  await expectFacebookVideoOpen(() =>
+    Promise.resolve(new Response(null, { status: 302, headers: { Location: "https://www.facebook.com/login/" } })),
+  );
+});
+
+test("a crawler is redirected when the facebook video fetch fails", async () => {
+  await expectFacebookVideoOpen(() => Promise.reject(new TypeError("fetch failed")));
+});
+
+test("a crawler is redirected when the facebook video cache binding throws", async () => {
+  const app = createWorker({
+    cache: () => {
+      throw new Error("no cache");
+    },
+  });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await app.fetch(new Request(REEL_SHARE, { headers: { "User-Agent": DISCORD } }), {} as Env, ctx);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(REEL);
+    expect(spy).toHaveBeenCalledTimes(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 test("a crawler is redirected when the facebook cache entry is not json", async () => {
   const fake = fakeCache();
   fake.entries.set(MANNY_KEY, new Response("not json"));
