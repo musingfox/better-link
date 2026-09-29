@@ -2,6 +2,8 @@
 
 English | [繁體中文](README.zh-TW.md)
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/musingfox/better-link)
+
 Turns social media post URLs into clean share links that show a proper preview in chat apps.
 
 Instagram and Facebook links pasted into Discord or Telegram often show no preview, or carry tracking parameters such as `igsh` and `fbclid`. better-link is a Cloudflare Worker that does three things:
@@ -64,6 +66,23 @@ The `url` parameter must be percent-encoded in both modes. The examples assume t
 | `GET /www.instagram.com/p/<code>/<n>` | The n-th image of a multi-image post (1-based) |
 | `GET /media/...` | 302 to a freshly signed CDN image or video URL, used by og tags |
 
+## Deploy your own
+
+Click the button to deploy your own copy to Cloudflare:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/musingfox/better-link)
+
+Cloudflare copies this repository into your GitHub or GitLab account, builds it and deploys the Worker, and connects Workers Builds so that every push to the copy redeploys it. You only need a Cloudflare account; the Workers free plan is enough, and there are no bindings, variables or secrets to fill in. You can rename the Worker on the setup page.
+
+Once deployed, the Worker is reachable at `https://better-link.<your-subdomain>.workers.dev` (or under the name you picked). Use that as `https://link.example` in the examples above, or attach a custom domain in the Cloudflare dashboard.
+
+To deploy manually instead:
+
+```sh
+bun install
+bun run deploy   # wrangler deploy, logs in to Cloudflare on first run
+```
+
 ## Development
 
 Requires [Bun](https://bun.sh).
@@ -75,6 +94,6 @@ bun run check    # typecheck + unit tests
 bun run smoke    # end-to-end tests against real Instagram / Facebook, needs network
 ```
 
-Deploy with wrangler (`bunx wrangler deploy`); configuration lives in `wrangler.jsonc`. The project only uses features of the Workers free plan and needs no bindings.
+Configuration lives in `wrangler.jsonc`. The project only uses features of the Workers free plan and needs no bindings.
 
 Design constraints are written in [`docs/spec/`](docs/spec/) (in Traditional Chinese), e.g. the 10ms CPU limit per request, falling back to the original URL on failure, and never putting expiring CDN URLs directly in og tags. Read the relevant specs before changing code. Instructions for AI agents are in [`CLAUDE.md`](CLAUDE.md) (`AGENTS.md` is a symlink to it).
