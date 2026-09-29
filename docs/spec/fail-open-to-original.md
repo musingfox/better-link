@@ -10,7 +10,7 @@ adr: null
 ---
 分享連結端點 `GET /<原網域>/<路徑>` 在抓取或解析失敗時，一律 302 回清理後的原網址，不回錯誤頁，也不回缺少媒體的 og 頁。
 
-抓取和解析包在同一個失敗邊界裡。邊界內的例外、上游非 200 回應、找不到必要欄位，都走同一個 302。已知的失敗訊號包括：Instagram 被導到 `/accounts/login` 或 `unsupportedbrowser`、embed 頁只顯示 `WatchOnInstagram`、Facebook 頁面出現「已無法取得使用」或 "isn't available"。
+抓取和解析包在同一個失敗邊界裡。邊界內的例外、上游非 200 回應、找不到必要欄位，都走同一個 302。已知的失敗訊號包括：Instagram 被導到 `/accounts/login` 或 `unsupportedbrowser`、embed 頁只顯示 `WatchOnInstagram`、Facebook `post.php` 找不到 `t39.30808-6` 貼文圖或作者。Facebook 的失敗頁一律回 200，有些完全沒有提示文字，所以只能靠缺欄位判定，不能靠比對字樣。
 
 這條只管分享連結端點。`GET /?url=` 轉換端點和 `/media/` 端點的錯誤處理不在範圍內。
 
