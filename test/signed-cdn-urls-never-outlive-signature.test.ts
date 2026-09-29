@@ -1,6 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
 import { createWorker } from "../src/index";
-import { parsePostPage } from "../src/facebook";
+import { parsePostPage, parseVideoPage } from "../src/facebook";
 import { parseEmbed } from "../src/instagram";
 import { fakeCache } from "./support/fake-cache";
 
@@ -285,9 +285,80 @@ test("a facebook story media url redirects to the signed image", async () => {
   }
 });
 
+const REEL_SHARE = "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr";
 const REEL_MEDIA = "https://bl.example/media/www.facebook.com/reel/1016339268064528";
 const REEL_PLUGIN =
   "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1016339268064528";
+const WATCH_PLUGIN =
+  "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fwatch%2F%3Fv%3D10153231379946729";
+const REEL_HD_PREFIX =
+  "https://video.xx.fbcdn.net/o1/v/t2/f2/m366/AQNNAQ5xCFdFoJwc49rZRxFFedNevtjkn0gMUD2Q2ZTbedNDHI8hsvE3jQCPoVExUIF9uQNIrWfd-is2WdzC7kFhefYs2T_GA616SIwm083nqA.mp4?";
+const VIDEOS_HD_PREFIX =
+  "https://video.xx.fbcdn.net/o1/v/t2/f2/m412/AQO00w7gkHtBwvAKd2SCYhroaNCqSwBQ52S2KsO2HwmohEiR_GoAwy8VIVzshQP4cIHoXexac9D3IR_1OBxPgGE.mp4?_nc_cat=101&";
+
+test("a facebook reel media url redirects to the signed mp4", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const video = (await parseVideoPage(html))?.media[0];
+  if (video?.kind !== "video") throw new Error("missing video");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, REEL_MEDIA);
+    const location = res.headers.get("location");
+    expect(res.status).toBe(302);
+    expect(location).toBe(video.url);
+    expect(location?.startsWith(REEL_HD_PREFIX)).toBe(true);
+    expect(new URL(location ?? "").pathname.endsWith(".mp4")).toBe(true);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).toBe("");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(REEL_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook reel media redirect reuses the preview cache", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const video = (await parseVideoPage(html))?.media[0];
+  if (video?.kind !== "video") throw new Error("missing video");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    await call(app, REEL_SHARE, { "User-Agent": DISCORD });
+    const res = await call(app, REEL_MEDIA);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(video.url);
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook watch media url redirects to the signed mp4", async () => {
+  const html = await facebookFixture("video-watch-10153231379946729.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, "https://bl.example/media/www.facebook.com/watch/?v=10153231379946729");
+    const location = res.headers.get("location") ?? "";
+    expect(res.status).toBe(302);
+    expect(location.startsWith(VIDEOS_HD_PREFIX)).toBe(true);
+    expect(location.includes("%3D")).toBe(true);
+    expect(location.includes("\\")).toBe(false);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(WATCH_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
 
 test("a facebook reel media url is not found when the video is unavailable", async () => {
   const html = await facebookFixture("video-unavailable.zh-Hant.html");
