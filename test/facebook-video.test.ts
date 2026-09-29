@@ -492,3 +492,53 @@ test("a cache read rejection yields nothing", async () => {
   };
   expect(await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache, fetcher: () => Promise.resolve(new Response(null, { status: 200 })) })).toBeNull();
 });
+
+const WATCH_KEY = "https://bl.example/__cache/facebook/v1/www.facebook.com%2Fwatch%2F%3Fv%3D10153231379946729";
+
+test("a parsed video is stored for a day", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const fake = fakeCache();
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  const post = await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fake.cache, fetcher });
+  expect([...fake.entries.keys()]).toEqual([REEL_KEY]);
+  const stored = fake.entries.get(REEL_KEY);
+  expect(stored?.headers.get("cache-control")).toBe("max-age=86400");
+  expect(stored?.headers.get("content-type")).toBe("application/json");
+  if (!stored) throw new Error("missing cache entry");
+  const body: unknown = await stored.json();
+  expect(body).toEqual(post);
+  expect(fake.calls.put).toBe(1);
+});
+
+test("a watch cache key encodes the query", async () => {
+  const html = await fixture("video-watch-10153231379946729.zh-Hant.html");
+  const fake = fakeCache();
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  await facebookVideo(new URL(WATCH), { origin: "https://bl.example", cache: fake.cache, fetcher });
+  const keys = [...fake.entries.keys()];
+  expect(keys).toEqual([WATCH_KEY]);
+  expect(keys[0]?.includes("?")).toBe(false);
+});
+
+test("a reel query is encoded into the cache key", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const fake = fakeCache();
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  await facebookVideo(new URL("https://www.facebook.com/reel/1016339268064528?s=ifu"), {
+    origin: "https://bl.example",
+    cache: fake.cache,
+    fetcher,
+  });
+  expect([...fake.entries.keys()]).toEqual([`${REEL_KEY}%3Fs%3Difu`]);
+});
+
+test("a cache write rejection still returns the video", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const cache = {
+    match: () => Promise.resolve(undefined),
+    put: () => Promise.reject(new Error("full")),
+  };
+  const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+  const post = await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache, fetcher });
+  expect(post).toEqual(await parseVideoPage(html));
+});
