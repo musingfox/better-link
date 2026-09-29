@@ -1486,6 +1486,7 @@ const REEL = "https://www.facebook.com/reel/1016339268064528";
 const REEL_SHARE = "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr";
 const REEL_PLUGIN =
   "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1016339268064528";
+const REEL_MEDIA = "https://bl.example/media/www.facebook.com/reel/1016339268064528";
 const WATCH_PLUGIN =
   "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fwatch%2F%3Fv%3D10153231379946729";
 
@@ -1821,6 +1822,68 @@ test("facebook caller credentials are not written to the console", async () => {
   try {
     await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD, ...SECRET });
     await callWorker(app, MANNY_MEDIA, { "User-Agent": DISCORD, ...SECRET });
+    const recorded = JSON.stringify([logs.mock.calls, infos.mock.calls, warns.mock.calls, errors.mock.calls]);
+    expect(recorded).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+    logs.mockRestore();
+    infos.mockRestore();
+    warns.mockRestore();
+    errors.mockRestore();
+  }
+});
+
+test("a facebook video preview fetch does not forward caller credentials", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, REEL_SHARE, { "User-Agent": DISCORD, ...SECRET });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const upstream = JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]]);
+    expect(upstream).not.toContain("s3cr3t");
+    expect(upstream).not.toContain(DISCORD);
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+    expect(trace).not.toContain(DISCORD);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook video media fetch does not forward caller credentials", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, REEL_MEDIA, { "User-Agent": DISCORD, ...SECRET });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const init = spy.mock.calls[0]?.[1];
+    expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+    const upstream = JSON.stringify([spy.mock.calls[0]?.[0], [...new Headers(init?.headers)]]);
+    expect(upstream).not.toContain("s3cr3t");
+    const trace = dumped(res, await res.text());
+    expect(trace).not.toContain("s3cr3t");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("facebook video caller credentials are not written to the console", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const logs = spyOn(console, "log");
+  const infos = spyOn(console, "info");
+  const warns = spyOn(console, "warn");
+  const errors = spyOn(console, "error");
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const preview = createWorker({ cache: () => fakeCache().cache });
+    await callWorker(preview, REEL_SHARE, { "User-Agent": DISCORD, ...SECRET });
+    const media = createWorker({ cache: () => fakeCache().cache });
+    await callWorker(media, REEL_MEDIA, { "User-Agent": DISCORD, ...SECRET });
+    expect(spy).toHaveBeenCalledTimes(2);
     const recorded = JSON.stringify([logs.mock.calls, infos.mock.calls, warns.mock.calls, errors.mock.calls]);
     expect(recorded).not.toContain("s3cr3t");
   } finally {
