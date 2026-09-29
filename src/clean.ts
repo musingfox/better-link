@@ -7,7 +7,18 @@ const YOUTUBE_HOSTS = new Set([
   "youtu.be",
 ]);
 
+const X_HOSTS = new Set([
+  "x.com",
+  "www.x.com",
+  "mobile.x.com",
+  "twitter.com",
+  "www.twitter.com",
+  "mobile.twitter.com",
+  "m.twitter.com",
+]);
+
 const INSTAGRAM_PARAMS = new Set(["img_index"]);
+const X_SHARE_PARAMS = new Set(["s", "t"]);
 const YOUTUBE_PARAMS = new Set(["v", "t", "list", "index"]);
 
 const BLOCKED_NAMES = new Set([
@@ -41,6 +52,7 @@ function blocked(name: string): boolean {
 function keepSegment(hostname: string, name: string): boolean {
   if (INSTAGRAM_HOSTS.has(hostname)) return INSTAGRAM_PARAMS.has(name);
   if (YOUTUBE_HOSTS.has(hostname)) return YOUTUBE_PARAMS.has(name);
+  if (X_HOSTS.has(hostname) && X_SHARE_PARAMS.has(name.toLowerCase())) return false;
   return !blocked(name);
 }
 

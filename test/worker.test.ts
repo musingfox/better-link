@@ -565,11 +565,11 @@ test("a discord crawler on threads is redirected to the fix service", async () =
 });
 
 test("a telegram crawler keeps the functional query on the fix service", async () => {
-  const res = await call("https://bl.example/twitter.com/jack/status/20?s=20&utm_source=x&fbclid=1", {
+  const res = await call("https://bl.example/twitter.com/jack/status/20?lang=en&s=20&utm_source=x&fbclid=1", {
     "User-Agent": "TelegramBot (like TwitterBot)",
   });
   expect(res.status).toBe(302);
-  expect(res.headers.get("location")).toBe("https://fixupx.com/jack/status/20?s=20");
+  expect(res.headers.get("location")).toBe("https://fixupx.com/jack/status/20?lang=en");
 });
 
 test("a discord crawler keeps a pixiv illustration query on the fix service", async () => {
@@ -655,7 +655,7 @@ test("a desktop browser on x.com gets the cleaned original", async () => {
     "User-Agent": CHROME,
   });
   expect(res.status).toBe(302);
-  expect(res.headers.get("location")).toBe("https://x.com/jack/status/20?s=20");
+  expect(res.headers.get("location")).toBe("https://x.com/jack/status/20");
 });
 
 test("a share link with no user agent stays on the cleaned original", async () => {

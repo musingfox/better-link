@@ -180,7 +180,7 @@ expect_resp \
   'http://127.0.0.1:8799/x.com/jack/status/20?s=20&utm_source=x' \
   302 \
   - \
-  'https://fixupx.com/jack/status/20?s=20' \
+  'https://fixupx.com/jack/status/20' \
   - \
   'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
 
@@ -188,7 +188,7 @@ expect_resp \
   'http://127.0.0.1:8799/x.com/jack/status/20?s=20&utm_source=x' \
   302 \
   - \
-  'https://x.com/jack/status/20?s=20' \
+  'https://x.com/jack/status/20' \
   - \
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 

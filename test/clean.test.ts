@@ -167,3 +167,15 @@ test("names that only extend refsrc or _rdr are kept", () => {
     "https://example.com/a?refsrcs=1&_rdrx=2",
   );
 });
+
+test("x and twitter drop the share parameters s and t", () => {
+  expect(cleanUrl(new URL("https://x.com/jack/status/20?s=46&t=AbCdEf123")).href).toBe("https://x.com/jack/status/20");
+  expect(cleanUrl(new URL("https://mobile.twitter.com/jack/status/20?S=09&keep=1")).href).toBe(
+    "https://mobile.twitter.com/jack/status/20?keep=1",
+  );
+});
+
+test("s and t are kept on hosts other than x and twitter", () => {
+  expect(cleanUrl(new URL("https://example.com/?s=term&t=1")).href).toBe("https://example.com/?s=term&t=1");
+  expect(cleanUrl(new URL("https://fixupx.com/jack/status/20?s=46")).href).toBe("https://fixupx.com/jack/status/20?s=46");
+});
