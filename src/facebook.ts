@@ -130,6 +130,7 @@ export async function parsePostPage(html: string): Promise<Post | null> {
 }
 
 const VIDEO_CDN = "https://video.xx.fbcdn.net";
+const VIDEO_PLUGIN = "https://www.facebook.com/plugins/video.php?href=";
 
 function readJsonString(html: string, key: string): string | null {
   const at = html.indexOf(key);
@@ -235,11 +236,12 @@ function cacheKey(origin: string, canonical: URL): string {
   return `${origin}/__cache/facebook/v1/${encodeURIComponent(canonical.host + canonical.pathname + canonical.search)}`;
 }
 
-export async function facebookPost(
+async function loadFromPlugin(
   canonical: URL,
   deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
+  pluginPrefix: string,
+  parse: (html: string) => Promise<Post | null>,
 ): Promise<Post | null> {
-  if (!isFacebookPostUrl(canonical)) return null;
   const fetcher = deps.fetcher ?? ((input, init) => fetch(input, init));
   const key = cacheKey(deps.origin, canonical);
   try {
@@ -249,13 +251,13 @@ export async function facebookPost(
       if (!isPost(body)) return null;
       return body;
     }
-    const response = await fetcher(PLUGIN + encodeURIComponent(canonical.href), {
+    const response = await fetcher(pluginPrefix + encodeURIComponent(canonical.href), {
       headers: { "User-Agent": EMBED_UA },
       redirect: "manual",
       signal: AbortSignal.timeout(5000),
     });
     if (response.status !== 200) return null;
-    const post = await parsePostPage(await response.text());
+    const post = await parse(await response.text());
     if (!post) return null;
     await deps.cache
       .put(
@@ -272,4 +274,20 @@ export async function facebookPost(
   } catch {
     return null;
   }
+}
+
+export async function facebookPost(
+  canonical: URL,
+  deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
+): Promise<Post | null> {
+  if (!isFacebookPostUrl(canonical)) return null;
+  return loadFromPlugin(canonical, deps, PLUGIN, parsePostPage);
+}
+
+export async function facebookVideo(
+  canonical: URL,
+  deps: { origin: string; cache: PostCache; fetcher?: Fetcher },
+): Promise<Post | null> {
+  if (!isFacebookVideoUrl(canonical)) return null;
+  return loadFromPlugin(canonical, deps, VIDEO_PLUGIN, parseVideoPage);
 }

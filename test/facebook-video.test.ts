@@ -1,5 +1,7 @@
-import { expect, test } from "bun:test";
-import { isFacebookPostUrl, isFacebookVideoUrl, parseVideoPage } from "../src/facebook";
+import { expect, spyOn, test } from "bun:test";
+import type { Fetcher } from "../src/expand";
+import { facebookVideo, isFacebookPostUrl, isFacebookVideoUrl, parseVideoPage } from "../src/facebook";
+import { fakeCache } from "./support/fake-cache";
 
 const MANNY =
   "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
@@ -298,4 +300,90 @@ test("an unterminated 200kb source stays under 10 ms", async () => {
   await expect(parseVideoPage(html)).resolves.toBeNull();
   const median = await timedMedian(html);
   expect(median).toBeLessThan(10);
+});
+
+const REEL = "https://www.facebook.com/reel/1016339268064528";
+const REEL_PLUGIN =
+  "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1016339268064528";
+const WATCH = "https://www.facebook.com/watch/?v=10153231379946729";
+const WATCH_PLUGIN =
+  "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fwatch%2F%3Fv%3D10153231379946729";
+
+test("a cache miss loads video.php once with the pinned user agent", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const calls: Array<{ input: string; init: RequestInit }> = [];
+  const fetcher: Fetcher = (input, init) => {
+    calls.push({ input, init });
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  const post = await facebookVideo(new URL(REEL), {
+    origin: "https://bl.example",
+    cache: fakeCache().cache,
+    fetcher,
+  });
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.input).toBe(REEL_PLUGIN);
+  const init = calls[0]?.init;
+  expect([...(new Headers(init?.headers).keys())]).toEqual(["user-agent"]);
+  expect(new Headers(init?.headers).get("user-agent")).toBe("Go-http-client/1.1");
+  expect(init?.redirect).toBe("manual");
+  expect(init?.signal instanceof AbortSignal).toBe(true);
+  expect(post).toEqual(await parseVideoPage(html));
+});
+
+test("a watch url is loaded from its video plugin page", async () => {
+  const html = await fixture("video-watch-10153231379946729.zh-Hant.html");
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  await facebookVideo(new URL(WATCH), { origin: "https://bl.example", cache: fakeCache().cache, fetcher });
+  expect(calls).toEqual([WATCH_PLUGIN]);
+});
+
+test("a mobile reel url is passed through as the plugin href", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  await facebookVideo(new URL("https://m.facebook.com/reel/1016339268064528"), {
+    origin: "https://bl.example",
+    cache: fakeCache().cache,
+    fetcher,
+  });
+  expect(calls[0]).toBe(
+    "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fm.facebook.com%2Freel%2F1016339268064528",
+  );
+});
+
+test("a reel query is encoded into the plugin href", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(html, { status: 200 }));
+  };
+  await facebookVideo(new URL("https://www.facebook.com/reel/1016339268064528?s=ifu"), {
+    origin: "https://bl.example",
+    cache: fakeCache().cache,
+    fetcher,
+  });
+  expect(calls[0]).toBe(`${REEL_PLUGIN}%3Fs%3Difu`);
+});
+
+test("a cache miss uses the global fetch when no fetcher is injected", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fakeCache().cache });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(REEL_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
 });
