@@ -387,3 +387,42 @@ test("a cache miss uses the global fetch when no fetcher is injected", async () 
     spy.mockRestore();
   }
 });
+
+const REEL_KEY = "https://bl.example/__cache/facebook/v1/www.facebook.com%2Freel%2F1016339268064528";
+
+test("a non-200 video plugin response yields nothing and stores nothing", async () => {
+  for (const status of [403, 500, 302]) {
+    const fake = fakeCache();
+    const fetcher: Fetcher = () =>
+      Promise.resolve(
+        new Response(null, {
+          status,
+          headers: status === 302 ? { Location: "https://www.facebook.com/login/" } : undefined,
+        }),
+      );
+    expect(await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+    expect(fake.entries.size).toBe(0);
+  }
+});
+
+test("a failed or aborted video fetch yields nothing", async () => {
+  const rejected: Fetcher = () => Promise.reject(new TypeError("fetch failed"));
+  const aborted: Fetcher = () => Promise.reject(new DOMException("aborted", "AbortError"));
+  expect(
+    await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fakeCache().cache, fetcher: rejected }),
+  ).toBeNull();
+  expect(
+    await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fakeCache().cache, fetcher: aborted }),
+  ).toBeNull();
+});
+
+test("an unparsable video page is not cached", async () => {
+  for (const name of ["video-unavailable.zh-Hant.html", "video-embed-blocked.zh-Hant.html"]) {
+    const fake = fakeCache();
+    const html = await fixture(name);
+    const fetcher: Fetcher = () => Promise.resolve(new Response(html, { status: 200 }));
+    expect(await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+    expect(fake.entries.size).toBe(0);
+    expect(fake.calls.put).toBe(0);
+  }
+});
