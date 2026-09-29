@@ -10,38 +10,59 @@ Instagram and Facebook links pasted into Discord or Telegram often show no previ
 - For Instagram posts and Facebook posts and videos, fetches the data itself and serves an og preview page. For multi-image posts you can pick which image to show.
 - For X / Twitter, TikTok, Bluesky, Reddit, Pixiv and Threads, hands crawlers off to existing fix services.
 
-When a regular user opens a share link, they get a 302 to the cleaned original URL and never see an intermediate page.
+It offers two modes: clean the URL only, or also get a share link that embeds properly. See below.
 
-## Usage
+## Two modes
 
-The examples below assume the Worker is deployed at `https://link.example`.
+better-link produces two kinds of links. Pick based on whether you want better-link to stay in the path.
 
-### Create a share link
+| | Clean only | Share link with embed |
+| --- | --- | --- |
+| How to get it | `GET /?url=<url>&raw=1` | `GET /?url=<url>`, or replace `https://` with `https://link.example/` |
+| What you get | `https://www.instagram.com/p/ABC/` | `https://link.example/www.instagram.com/p/ABC/` |
+| Tracking parameters | Removed | Removed |
+| `/share/` short links | Expanded | Expanded (via `/?url=` only) |
+| Preview in chat apps | Whatever the platform gives you, often none for Instagram / Facebook | og preview from better-link or a fix service |
+| Depends on better-link after sharing | No, it is the platform's own URL | Yes, every open goes through the Worker |
 
-```sh
-curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Figsh%3Dxyz'
-# https://link.example/www.instagram.com/p/ABC/
-```
+In both modes a person who opens the link ends up on the cleaned original URL. The difference is only what crawlers see.
 
-The `url` parameter must be percent-encoded. Add `raw=1` to get only the cleaned original URL:
+### Clean only
+
+Returns the cleaned original URL as plain text. Use this when you want to drop tracking parameters and keep a plain platform URL, for example to archive or to share where previews do not matter.
 
 ```sh
 curl 'https://link.example/?url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20%3Fs%3D20&raw=1'
 # https://x.com/jack/status/20
 ```
 
-You can also skip the API and replace `https://` in the original URL with `https://link.example/`. This path also strips tracking parameters, but does not expand `/share/` short links.
+### Share link with embed
 
-### Endpoints
+Returns a link on the better-link domain. When a chat app's crawler fetches it, better-link answers depending on the platform:
+
+- Instagram posts, Facebook posts and videos: the Worker fetches the post itself and returns og / twitter card HTML. For multi-image Instagram posts, append `/<n>` to pick the n-th image (1-based).
+- X / Twitter, TikTok, Bluesky, Reddit, Pixiv, Threads: 302 to an existing fix service that renders the embed.
+- Everything else: 302 to the cleaned original URL, so no better preview than the original.
+
+Regular browsers always get a 302 to the cleaned original URL and never see an intermediate page. If fetching or parsing fails, crawlers also get that 302: the worst case is a missing preview, never an error page.
+
+```sh
+curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Figsh%3Dxyz'
+# https://link.example/www.instagram.com/p/ABC/
+```
+
+You can also skip the API and replace `https://` in the original URL with `https://link.example/`. This also strips tracking parameters, but does not expand `/share/` short links.
+
+The `url` parameter must be percent-encoded in both modes. The examples assume the Worker is deployed at `https://link.example`.
+
+## Endpoints
 
 | Request | Response |
 | --- | --- |
-| `GET /?url=<url>[&raw=1]` | `200 text/plain` with the share link; `400` for an invalid URL |
+| `GET /?url=<url>[&raw=1]` | `200 text/plain` with the link; `400` for an invalid URL |
 | `GET /<original host>/<path>` | Crawlers: og preview page or 302 to a fix service. Regular browsers: 302 to the original URL |
 | `GET /www.instagram.com/p/<code>/<n>` | The n-th image of a multi-image post (1-based) |
 | `GET /media/...` | 302 to a freshly signed CDN image or video URL, used by og tags |
-
-If fetching or parsing fails, a share link always 302s to the cleaned original URL. The worst case is a missing preview, never an error page.
 
 ## Development
 

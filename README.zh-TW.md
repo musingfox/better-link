@@ -10,38 +10,59 @@ Instagram 和 Facebook 的連結貼到 Discord、Telegram 常常沒有預覽，�
 - 對 Instagram 貼文與 Facebook 貼文、影片，由 Worker 自己抓資料產生 og 預覽頁，多圖貼文可指定第幾張。
 - 對 X / Twitter、TikTok、Bluesky、Reddit、Pixiv、Threads，把爬蟲轉給現成的修正服務。
 
-一般使用者點開分享連結時，會被 302 轉回清理後的原網址，不會看到中間頁。
+提供兩種模式：只清理網址，或另外產生能正常 embed 的分享連結，見下方說明。
 
-## 用法
+## 兩種模式
 
-以下以部署網域 `https://link.example` 為例。
+better-link 產生兩種連結，差別在分享出去之後還要不要經過 better-link。
 
-### 產生分享連結
+| | 只清理連結 | 帶 embed 的分享連結 |
+| --- | --- | --- |
+| 取得方式 | `GET /?url=<網址>&raw=1` | `GET /?url=<網址>`，或把 `https://` 換成 `https://link.example/` |
+| 得到的網址 | `https://www.instagram.com/p/ABC/` | `https://link.example/www.instagram.com/p/ABC/` |
+| 追蹤碼 | 清掉 | 清掉 |
+| `/share/` 短連結 | 展開 | 展開（僅限 `/?url=`） |
+| 聊天軟體預覽 | 平台原本給什麼就是什麼，Instagram / Facebook 常常沒有 | better-link 或修正服務產生的 og 預覽 |
+| 分享後是否依賴 better-link | 否，就是平台自己的網址 | 是，每次打開都經過 Worker |
 
-```sh
-curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Figsh%3Dxyz'
-# https://link.example/www.instagram.com/p/ABC/
-```
+兩種模式下，真人點開連結最後都會到清理後的原網址，差別只在爬蟲看到什麼。
 
-`url` 參數要 percent-encode。加上 `raw=1` 則只回清理後的原網址：
+### 只清理連結
+
+回傳清理後的原網址（純文字）。適合只想去掉追蹤碼、保留平台原本網址的情況，例如存檔，或分享到不需要預覽的地方。
 
 ```sh
 curl 'https://link.example/?url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20%3Fs%3D20&raw=1'
 # https://x.com/jack/status/20
 ```
 
+### 帶 embed 的分享連結
+
+回傳 better-link 網域下的連結。聊天軟體的爬蟲來抓時，依平台回應：
+
+- Instagram 貼文、Facebook 貼文與影片：Worker 自己抓貼文，回 og / twitter card HTML。Instagram 多圖貼文可在網址後加 `/<n>` 指定第 n 張（1 起算）。
+- X / Twitter、TikTok、Bluesky、Reddit、Pixiv、Threads：302 到現成的修正服務，由它產生 embed。
+- 其他網站：302 回清理後的原網址，預覽不會比原網址好。
+
+一般瀏覽器一律 302 回清理後的原網址，不會看到中間頁。抓取或解析失敗時爬蟲也拿到同一個 302：最差情況是沒有預覽，而不是錯誤頁。
+
+```sh
+curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Figsh%3Dxyz'
+# https://link.example/www.instagram.com/p/ABC/
+```
+
 也可以不呼叫 API，直接把原網址的 `https://` 換成 `https://link.example/`。這條路徑同樣會清追蹤碼，但不展開 `/share/` 短連結。
 
-### 端點
+兩種模式的 `url` 參數都要 percent-encode。範例以部署網域 `https://link.example` 為例。
+
+## 端點
 
 | 請求 | 回應 |
 | --- | --- |
-| `GET /?url=<網址>[&raw=1]` | `200 text/plain`，內容是分享連結；網址無效時回 `400` |
+| `GET /?url=<網址>[&raw=1]` | `200 text/plain`，內容是連結；網址無效時回 `400` |
 | `GET /<原網域>/<路徑>` | 爬蟲：og 預覽頁或 302 到修正服務。一般瀏覽器：302 回原網址 |
 | `GET /www.instagram.com/p/<code>/<n>` | 多圖貼文的第 n 張（1 起算） |
 | `GET /media/...` | 302 到當下重新簽章的 CDN 圖片或影片網址，供 og 標籤使用 |
-
-抓取或解析失敗時，分享連結一律 302 回清理後的原網址，最差情況是沒有預覽，而不是錯誤頁。
 
 ## 開發
 
