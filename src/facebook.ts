@@ -192,7 +192,7 @@ function readPositiveInt(html: string, key: string): number | null {
     if (i === exponent) return null;
   }
   const value = Number(html.slice(start, i));
-  if (!Number.isSafeInteger(value) || value <= 0) return null;
+  if (!Number.isInteger(value) || value <= 0) return null;
   return value;
 }
 

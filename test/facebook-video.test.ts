@@ -274,6 +274,14 @@ test("a missing or non-integer size yields nothing", async () => {
   expect(await parseVideoPage(P(HD, SD, '"original_width":1920'))).toBeNull();
 });
 
+test("a positive integer at 2^53 is the video width", async () => {
+  const post = await parseVideoPage(
+    `<img role="img" aria-label="A"><script>"hd_src":"https://x/a.mp4","original_width":9007199254740992,"original_height":1080</script>`,
+  );
+  const item = post?.media[0];
+  expect(item?.kind === "video" ? item.width : null).toBe(9007199254740992);
+});
+
 function medianOf(samples: number[]): number {
   const sorted = [...samples].sort((a, b) => a - b);
   return sorted[2] ?? Number.POSITIVE_INFINITY;
