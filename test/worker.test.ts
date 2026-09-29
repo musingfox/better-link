@@ -1470,16 +1470,137 @@ test("a facebook post with no user agent does not fetch", async () => {
   }
 });
 
-test("a crawler on a facebook reel does not fetch", async () => {
+const REEL = "https://www.facebook.com/reel/1016339268064528";
+const REEL_SHARE = "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr";
+const REEL_PLUGIN =
+  "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1016339268064528";
+const WATCH_PLUGIN =
+  "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Fwatch%2F%3Fv%3D10153231379946729";
+
+test("a discord crawler receives a facebook reel player card", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, REEL_SHARE, { "User-Agent": DISCORD });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const body = await res.text();
+    const video = "https://bl.example/media/www.facebook.com/reel/1016339268064528";
+    expect(body).toContain(`<meta property="og:video" content="${video}">`);
+    expect(body).toContain(`<meta property="og:video:secure_url" content="${video}">`);
+    expect(body).toContain(`<meta name="twitter:player:stream" content="${video}">`);
+    expect(body).toContain('<meta property="og:video:width" content="1920">');
+    expect(body).toContain('<meta property="og:video:height" content="1080">');
+    expect(body).toContain('<meta name="twitter:card" content="player">');
+    expect(body).toContain('<meta property="og:title" content="完全娛樂 ShowBiz">');
+    expect(body).toContain('<meta property="og:description" content="">');
+    expect(body).toContain(`<meta property="og:url" content="${REEL}">`);
+    expect(body).not.toContain("og:image");
+    expect(body).not.toContain("twitter:image");
+    expect(body).not.toContain("fbcdn");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(REEL_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a discord crawler receives a facebook watch player card", async () => {
+  const html = await facebookFixture("video-watch-10153231379946729.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/watch/?v=10153231379946729", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).toContain(
+      '<meta property="og:video" content="https://bl.example/media/www.facebook.com/watch/?v=10153231379946729">',
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(WATCH_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a discord crawler receives a facebook page video player card", async () => {
+  const html = await facebookFixture("video-videos-10153231379946729.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.facebook.com/facebook/videos/10153231379946729/", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).toContain(
+      '<meta property="og:video" content="https://bl.example/media/www.facebook.com/facebook/videos/10153231379946729/">',
+    );
+    expect(body).toContain('<meta property="og:title" content="Facebook">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a mobile facebook reel preview keeps the mobile host in the video url", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/m.facebook.com/reel/1016339268064528", {
+      "User-Agent": DISCORD,
+    });
+    const body = await res.text();
+    expect(body).toContain(
+      '<meta property="og:video" content="https://bl.example/media/m.facebook.com/reel/1016339268064528">',
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a second facebook reel preview reuses the cached video", async () => {
+  const html = await facebookFixture("video-reel-1016339268064528.zh-Hant.html");
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const first = await callWorker(app, REEL_SHARE, { "User-Agent": DISCORD });
+    const second = await callWorker(app, REEL_SHARE, { "User-Agent": DISCORD });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await first.text()).toBe(await second.text());
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a desktop browser on a facebook reel does not fetch", async () => {
   const fake = fakeCache();
   const app = createWorker({ cache: () => fake.cache });
   const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
   try {
-    const res = await callWorker(app, "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr", {
-      "User-Agent": DISCORD,
-    });
+    const res = await callWorker(app, REEL_SHARE, { "User-Agent": CHROME });
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://www.facebook.com/reel/1016339268064528");
+    expect(res.headers.get("location")).toBe(REEL);
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook reel with no user agent does not fetch", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, REEL_SHARE);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(REEL);
     expect(spy).toHaveBeenCalledTimes(0);
     expect(fake.calls.match).toBe(0);
   } finally {

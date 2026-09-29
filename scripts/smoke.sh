@@ -261,6 +261,15 @@ expect_has \
   exact \
   'no-store'
 
+expect_has \
+  'http://127.0.0.1:8799/www.facebook.com/reel/1016339268064528' \
+  200 \
+  content-type \
+  exact \
+  'text/html; charset=utf-8' \
+  '<meta property="og:video" content="http://127.0.0.1:8799/media/www.facebook.com/reel/1016339268064528">' \
+  'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi

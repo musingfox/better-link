@@ -1,7 +1,7 @@
 import { cleanUrl, INSTAGRAM_HOSTS } from "./clean";
 import { isCrawler } from "./crawler";
 import { FACEBOOK_HOSTS, expandShareLink, isShareable } from "./expand";
-import { facebookPost, isFacebookPostUrl } from "./facebook";
+import { facebookPost, facebookVideo, isFacebookPostUrl, isFacebookVideoUrl } from "./facebook";
 import { fixServiceUrl } from "./fix-services";
 import { instagramPost, isShortcode, type Post, type PostCache } from "./instagram";
 import { renderOgPage } from "./og";
@@ -62,7 +62,9 @@ async function loadFacebookPost(
   deps: { cache: () => PostCache },
 ): Promise<Post | null> {
   try {
-    return await facebookPost(canonical, { origin, cache: deps.cache() });
+    const cache = deps.cache();
+    const load = isFacebookVideoUrl(canonical) ? facebookVideo : facebookPost;
+    return await load(canonical, { origin, cache });
   } catch {
     return null;
   }
@@ -74,13 +76,14 @@ async function facebookOg(
   deps: { cache: () => PostCache },
 ): Promise<Response> {
   const post = await loadFacebookPost(cleaned, requestUrl.origin, deps);
-  if (!post) return Response.redirect(cleaned.href, 302);
+  const item = post?.media[0];
+  if (!post || item === undefined) return Response.redirect(cleaned.href, 302);
   const mediaUrl = `${requestUrl.origin}/media/${cleaned.hostname}${cleaned.pathname}${cleaned.search}`;
   const page = renderOgPage({
     title: post.username,
     description: post.caption,
     url: cleaned.href,
-    media: { kind: "image", url: mediaUrl },
+    media: { ...item, url: mediaUrl },
   });
   return new Response(page, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
@@ -137,7 +140,9 @@ async function shareRedirect(
     const index = postMatch[3] === undefined ? 1 : Number(postMatch[3]);
     return instagramOg(requestUrl, landing, postMatch[2], index, deps);
   }
-  if (isCrawler(userAgent) && isFacebookPostUrl(cleaned)) return facebookOg(requestUrl, cleaned, deps);
+  if (isCrawler(userAgent) && (isFacebookPostUrl(cleaned) || isFacebookVideoUrl(cleaned))) {
+    return facebookOg(requestUrl, cleaned, deps);
+  }
   const fixed = isCrawler(userAgent) ? fixServiceUrl(cleaned) : null;
   return Response.redirect((fixed ?? landing).href, 302);
 }

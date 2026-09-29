@@ -171,6 +171,29 @@ test("a video og page does not embed a cdn address", async () => {
   }
 });
 
+test("a facebook video og page does not embed a cdn address", async () => {
+  const html = await Bun.file(
+    new URL("./fixtures/facebook/video-reel-1016339268064528.zh-Hant.html", import.meta.url),
+  ).text();
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(
+      app,
+      "https://bl.example/www.facebook.com/reel/1016339268064528?mibextid=wwXIfr",
+      { "User-Agent": DISCORD },
+    );
+    const body = await res.text();
+    expect(body).not.toContain("fbcdn");
+    expect(body).not.toContain("video-tpe");
+    expect(body).toContain('content="https://bl.example/media/www.facebook.com/reel/');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 test("a facebook og page does not embed a cdn address", async () => {
   const html = await Bun.file(new URL("./fixtures/facebook/post-1Fu5ScGFUZ.zh-Hant.html", import.meta.url)).text();
   const app = createWorker({ cache: () => fakeCache().cache });
