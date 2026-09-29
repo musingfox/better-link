@@ -129,6 +129,108 @@ export async function parsePostPage(html: string): Promise<Post | null> {
   return { username, caption: captionText(closed, parts), media: [{ kind: "image", url: image }] };
 }
 
+const VIDEO_CDN = "https://video.xx.fbcdn.net";
+
+function readJsonString(html: string, key: string): string | null {
+  const at = html.indexOf(key);
+  if (at < 0) return null;
+  const start = at + key.length;
+  if (html.charCodeAt(start) !== 34) return null;
+  let i = start + 1;
+  while (i < html.length) {
+    const code = html.charCodeAt(i);
+    if (code === 34) {
+      const decoded: unknown = JSON.parse(html.slice(start, i + 1));
+      if (typeof decoded !== "string") return null;
+      return decoded;
+    }
+    if (code === 92) {
+      if (i + 1 >= html.length) return null;
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  return null;
+}
+
+function usableVideoUrl(html: string, key: string): string | null {
+  try {
+    const decoded = readJsonString(html, key);
+    if (decoded === null) return null;
+    return cdnUrl(decoded, VIDEO_CDN);
+  } catch {
+    return null;
+  }
+}
+
+function readPositiveInt(html: string, key: string): number | null {
+  const at = html.indexOf(key);
+  if (at < 0) return null;
+  let i = at + key.length;
+  const start = i;
+  if (html[i] === "-") i += 1;
+  if (html[i] === "0") {
+    i += 1;
+  } else if (html[i] !== undefined && html[i] >= "0" && html[i] <= "9") {
+    while (html[i] !== undefined && html[i] >= "0" && html[i] <= "9") i += 1;
+  } else {
+    return null;
+  }
+  if (html[i] === ".") {
+    i += 1;
+    const fraction = i;
+    while (html[i] !== undefined && html[i] >= "0" && html[i] <= "9") i += 1;
+    if (i === fraction) return null;
+  }
+  if (html[i] === "e" || html[i] === "E") {
+    i += 1;
+    if (html[i] === "+" || html[i] === "-") i += 1;
+    const exponent = i;
+    while (html[i] !== undefined && html[i] >= "0" && html[i] <= "9") i += 1;
+    if (i === exponent) return null;
+  }
+  const value = Number(html.slice(start, i));
+  if (!Number.isSafeInteger(value) || value <= 0) return null;
+  return value;
+}
+
+async function videoAuthor(html: string): Promise<string | null> {
+  let author: string | null | undefined;
+  await new HTMLRewriter()
+    .on('img[role="img"]', {
+      element(element) {
+        if (author !== undefined) return;
+        try {
+          author = element.getAttribute("aria-label");
+        } catch {
+          author = null;
+        }
+      },
+    })
+    .transform(new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } }))
+    .arrayBuffer();
+  if (typeof author !== "string") return null;
+  const username = decodeEntities(author).trim();
+  if (username === "") return null;
+  return username;
+}
+
+export async function parseVideoPage(html: string): Promise<Post | null> {
+  try {
+    const url = usableVideoUrl(html, '"hd_src":') ?? usableVideoUrl(html, '"sd_src":');
+    if (url === null) return null;
+    const width = readPositiveInt(html, '"original_width":');
+    const height = readPositiveInt(html, '"original_height":');
+    if (width === null || height === null) return null;
+    const username = await videoAuthor(html);
+    if (username === null) return null;
+    return { username, caption: "", media: [{ kind: "video", url, width, height }] };
+  } catch {
+    return null;
+  }
+}
+
 function cacheKey(origin: string, canonical: URL): string {
   return `${origin}/__cache/facebook/v1/${encodeURIComponent(canonical.host + canonical.pathname + canonical.search)}`;
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isFacebookPostUrl, isFacebookVideoUrl } from "../src/facebook";
+import { isFacebookPostUrl, isFacebookVideoUrl, parseVideoPage } from "../src/facebook";
 
 const MANNY =
   "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol";
@@ -71,4 +71,39 @@ test("a url is never both a facebook post and a facebook video", () => {
     expect(isFacebookPostUrl(url) && isFacebookVideoUrl(url)).toBe(false);
   }
   for (const href of VIDEO_TRUE) expect(isFacebookPostUrl(new URL(href))).toBe(false);
+});
+
+const AUTHOR = '<img aria-label="A" role="img" src="https://scontent.x.fbcdn.net/v/t39.30808-1/a.jpg">';
+const HD = '"hd_src":"https:\\/\\/video-x.xx.fbcdn.net\\/o1\\/v\\/hd.mp4?oe=1&oh=2"';
+const SD = '"sd_src":"https:\\/\\/video-x.xx.fbcdn.net\\/o1\\/v\\/sd.mp4?oe=1&oh=3"';
+const DIMS = '"original_height":1080,"original_width":1920';
+
+function P(hd = HD, sd = SD, dims = DIMS, author = AUTHOR): string {
+  return `${author}<script>${hd},${sd},${dims}</script>`;
+}
+
+async function fixture(name: string): Promise<string> {
+  return Bun.file(new URL(`./fixtures/facebook/${name}`, import.meta.url)).text();
+}
+
+test("a video page without sources yields nothing", async () => {
+  for (const name of [
+    "video-unavailable.zh-Hant.html",
+    "video-embed-blocked.zh-Hant.html",
+    "video-empty-shell.html",
+  ]) {
+    expect(await parseVideoPage(await fixture(name))).toBeNull();
+  }
+  expect(await parseVideoPage("")).toBeNull();
+});
+
+test("hidden unavailable wording does not hide a real video", async () => {
+  const html = await fixture("video-reel-1016339268064528.zh-Hant.html");
+  expect(html.includes("影片無法使用")).toBe(true);
+  expect(await parseVideoPage(html)).not.toBeNull();
+});
+
+test("an unterminated hd source resolves to null", async () => {
+  const html = `${AUTHOR}<script>${DIMS},"hd_src":"https:\\/\\/x`;
+  await expect(parseVideoPage(html)).resolves.toBeNull();
 });
