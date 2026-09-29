@@ -271,3 +271,31 @@ test("a missing or non-integer size yields nothing", async () => {
   }
   expect(await parseVideoPage(P(HD, SD, '"original_width":1920'))).toBeNull();
 });
+
+function medianOf(samples: number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b);
+  return sorted[2] ?? Number.POSITIVE_INFINITY;
+}
+
+async function timedMedian(html: string): Promise<number> {
+  await parseVideoPage(html);
+  const samples: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = performance.now();
+    await parseVideoPage(html);
+    samples.push(performance.now() - start);
+  }
+  return medianOf(samples);
+}
+
+test("parsing the acceptance reel stays under 10 ms", async () => {
+  const median = await timedMedian(await fixture("video-reel-1016339268064528.zh-Hant.html"));
+  expect(median).toBeLessThan(10);
+});
+
+test("an unterminated 200kb source stays under 10 ms", async () => {
+  const html = `${AUTHOR}<script>${DIMS},"hd_src":"${"\\\\".repeat(100000)}`;
+  await expect(parseVideoPage(html)).resolves.toBeNull();
+  const median = await timedMedian(html);
+  expect(median).toBeLessThan(10);
+});
