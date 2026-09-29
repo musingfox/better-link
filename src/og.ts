@@ -68,7 +68,6 @@ ${ogMedia}
 <meta name="twitter:card" content="${card}">
 <meta name="twitter:title" content="${title}">
 ${twitterMedia}
-<meta http-equiv="refresh" content="0; url=${url}">
 </head>
 <body>
 <a href="${url}">${url}</a>

@@ -63,7 +63,6 @@ test("a post's metadata is an html preview with each og and twitter tag once", (
     '<meta name="twitter:card" content="summary_large_image">',
     '<meta name="twitter:title" content="@egg">',
     '<meta name="twitter:image" content="https://bl.example/media/X/1">',
-    '<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/X/">',
     '<a href="https://www.instagram.com/p/X/">https://www.instagram.com/p/X/</a>',
   ];
   for (const fragment of fragments) {
@@ -116,7 +115,6 @@ const imagePageBeforeVideo = `<!doctype html>
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="@egg">
 <meta name="twitter:image" content="https://bl.example/media/X/1">
-<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/X/">
 </head>
 <body>
 <a href="https://www.instagram.com/p/X/">https://www.instagram.com/p/X/</a>
@@ -142,7 +140,6 @@ test("a video preview lists each player tag once", () => {
     '<meta property="og:description" content="hi">',
     '<meta property="og:url" content="https://www.instagram.com/p/V/">',
     '<meta name="twitter:title" content="@v">',
-    '<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/V/">',
     '<a href="https://www.instagram.com/p/V/">https://www.instagram.com/p/V/</a>',
   ];
   for (const fragment of fragments) {
@@ -168,7 +165,6 @@ test("an image preview keeps each existing tag once and omits video tags", () =>
     '<meta name="twitter:card" content="summary_large_image">',
     '<meta name="twitter:title" content="@egg">',
     '<meta name="twitter:image" content="https://bl.example/media/X/1">',
-    '<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/X/">',
     '<a href="https://www.instagram.com/p/X/">https://www.instagram.com/p/X/</a>',
   ];
   for (const fragment of fragments) {

@@ -45,9 +45,7 @@ test("a discord crawler receives an og page pointing at this service", async () 
     expect(body).toContain('<meta property="og:title" content="@world_record_egg">');
     expect(body).toContain('<meta property="og:url" content="https://www.instagram.com/p/BsOGulcndj-/">');
     expect(body).toContain('<meta name="twitter:card" content="summary_large_image">');
-    expect(body).toContain(
-      '<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/BsOGulcndj-/">',
-    );
+    expect(body).not.toContain("http-equiv");
     expect(spy).toHaveBeenCalledTimes(1);
   } finally {
     spy.mockRestore();

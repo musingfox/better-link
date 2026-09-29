@@ -1005,7 +1005,7 @@ test("a crawler preview of carousel item 2 points at that item", async () => {
     expect(body).toContain('<meta property="og:image" content="https://bl.example/media/DOBXTYNklfi/2">');
     expect(body).toContain('<meta name="twitter:image" content="https://bl.example/media/DOBXTYNklfi/2">');
     expect(body).toContain('<meta property="og:url" content="https://www.instagram.com/p/DOBXTYNklfi/">');
-    expect(body).toContain('<meta http-equiv="refresh" content="0; url=https://www.instagram.com/p/DOBXTYNklfi/">');
+    expect(body).not.toContain("http-equiv");
     expect(body).toContain('<a href="https://www.instagram.com/p/DOBXTYNklfi/">');
   } finally {
     spy.mockRestore();
