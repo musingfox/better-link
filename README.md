@@ -1,57 +1,59 @@
 # better-link
 
-把社群貼文網址轉成乾淨、能在聊天軟體裡正常顯示預覽的分享連結。
+English | [繁體中文](README.zh-TW.md)
 
-Instagram 和 Facebook 的連結貼到 Discord、Telegram 常常沒有預覽，或帶著 `igsh`、`fbclid` 這類追蹤碼。better-link 是一個 Cloudflare Worker，負責三件事：
+Turns social media post URLs into clean share links that show a proper preview in chat apps.
 
-- 清掉追蹤碼，展開 Instagram / Facebook 的 `/share/` 短連結。
-- 對 Instagram 貼文與 Facebook 貼文、影片，由 Worker 自己抓資料產生 og 預覽頁，多圖貼文可指定第幾張。
-- 對 X / Twitter、TikTok、Bluesky、Reddit、Pixiv、Threads，把爬蟲轉給現成的修正服務。
+Instagram and Facebook links pasted into Discord or Telegram often show no preview, or carry tracking parameters such as `igsh` and `fbclid`. better-link is a Cloudflare Worker that does three things:
 
-一般使用者點開分享連結時，會被 302 轉回清理後的原網址，不會看到中間頁。
+- Strips tracking parameters and expands Instagram / Facebook `/share/` short links.
+- For Instagram posts and Facebook posts and videos, fetches the data itself and serves an og preview page. For multi-image posts you can pick which image to show.
+- For X / Twitter, TikTok, Bluesky, Reddit, Pixiv and Threads, hands crawlers off to existing fix services.
 
-## 用法
+When a regular user opens a share link, they get a 302 to the cleaned original URL and never see an intermediate page.
 
-以下以部署網域 `https://link.example` 為例。
+## Usage
 
-### 產生分享連結
+The examples below assume the Worker is deployed at `https://link.example`.
+
+### Create a share link
 
 ```sh
 curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Figsh%3Dxyz'
 # https://link.example/www.instagram.com/p/ABC/
 ```
 
-`url` 參數要 percent-encode。加上 `raw=1` 則只回清理後的原網址：
+The `url` parameter must be percent-encoded. Add `raw=1` to get only the cleaned original URL:
 
 ```sh
 curl 'https://link.example/?url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20%3Fs%3D20&raw=1'
 # https://x.com/jack/status/20
 ```
 
-也可以不呼叫 API，直接把原網址的 `https://` 換成 `https://link.example/`。這條路徑同樣會清追蹤碼，但不展開 `/share/` 短連結。
+You can also skip the API and replace `https://` in the original URL with `https://link.example/`. This path also strips tracking parameters, but does not expand `/share/` short links.
 
-### 端點
+### Endpoints
 
-| 請求 | 回應 |
+| Request | Response |
 | --- | --- |
-| `GET /?url=<網址>[&raw=1]` | `200 text/plain`，內容是分享連結；網址無效時回 `400` |
-| `GET /<原網域>/<路徑>` | 爬蟲：og 預覽頁或 302 到修正服務。一般瀏覽器：302 回原網址 |
-| `GET /www.instagram.com/p/<code>/<n>` | 多圖貼文的第 n 張（1 起算） |
-| `GET /media/...` | 302 到當下重新簽章的 CDN 圖片或影片網址，供 og 標籤使用 |
+| `GET /?url=<url>[&raw=1]` | `200 text/plain` with the share link; `400` for an invalid URL |
+| `GET /<original host>/<path>` | Crawlers: og preview page or 302 to a fix service. Regular browsers: 302 to the original URL |
+| `GET /www.instagram.com/p/<code>/<n>` | The n-th image of a multi-image post (1-based) |
+| `GET /media/...` | 302 to a freshly signed CDN image or video URL, used by og tags |
 
-抓取或解析失敗時，分享連結一律 302 回清理後的原網址，最差情況是沒有預覽，而不是錯誤頁。
+If fetching or parsing fails, a share link always 302s to the cleaned original URL. The worst case is a missing preview, never an error page.
 
-## 開發
+## Development
 
-需要 [Bun](https://bun.sh)。
+Requires [Bun](https://bun.sh).
 
 ```sh
 bun install
-bun run dev      # 本機跑 Worker
-bun run check    # 型別檢查 + 單元測試
-bun run smoke    # 對真實 Instagram / Facebook 的端到端測試，需要網路
+bun run dev      # run the Worker locally
+bun run check    # typecheck + unit tests
+bun run smoke    # end-to-end tests against real Instagram / Facebook, needs network
 ```
 
-部署用 wrangler（`bunx wrangler deploy`），設定在 `wrangler.jsonc`。專案只用 Workers 免費方案的功能，不需要任何 binding。
+Deploy with wrangler (`bunx wrangler deploy`); configuration lives in `wrangler.jsonc`. The project only uses features of the Workers free plan and needs no bindings.
 
-設計約束寫在 [`docs/spec/`](docs/spec/)，例如每請求 CPU 10ms 上限、失敗時退回原網址、og 標籤不直接放會過期的 CDN 網址。修改程式前先讀相關規格；給 AI 代理的說明在 [`CLAUDE.md`](CLAUDE.md)（`AGENTS.md` 是它的 symlink）。
+Design constraints are written in [`docs/spec/`](docs/spec/) (in Traditional Chinese), e.g. the 10ms CPU limit per request, falling back to the original URL on failure, and never putting expiring CDN URLs directly in og tags. Read the relevant specs before changing code. Instructions for AI agents are in [`CLAUDE.md`](CLAUDE.md) (`AGENTS.md` is a symlink to it).
