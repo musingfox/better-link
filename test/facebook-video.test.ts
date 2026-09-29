@@ -440,3 +440,55 @@ test("a non-video link never touches the video cache or video.php", async () => 
   expect(calls).toHaveLength(0);
   expect(fake.calls.match).toBe(0);
 });
+
+test("a cached video is returned without fetching", async () => {
+  const stored = {
+    username: "cached",
+    caption: "",
+    media: [{ kind: "video" as const, url: "https://video.xx.fbcdn.net/o1/v/c.mp4?oe=1", width: 720, height: 1280 }],
+  };
+  const fake = fakeCache();
+  fake.entries.set(
+    REEL_KEY,
+    new Response(JSON.stringify(stored), { headers: { "Content-Type": "application/json" } }),
+  );
+  const calls: string[] = [];
+  const fetcher: Fetcher = (input) => {
+    calls.push(input);
+    return Promise.resolve(new Response(null, { status: 500 }));
+  };
+  const post = await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fake.cache, fetcher });
+  expect(post).toEqual(stored);
+  expect(calls).toHaveLength(0);
+  expect(fake.calls.put).toBe(0);
+});
+
+test("a corrupt cache entry yields nothing without fetching", async () => {
+  const bodies = [
+    "not json",
+    JSON.stringify({
+      username: "cached",
+      caption: "",
+      media: [{ kind: "video", url: "https://video.xx.fbcdn.net/o1/v/c.mp4?oe=1", width: 0, height: 1280 }],
+    }),
+  ];
+  for (const body of bodies) {
+    const fake = fakeCache();
+    fake.entries.set(REEL_KEY, new Response(body));
+    const calls: string[] = [];
+    const fetcher: Fetcher = (input) => {
+      calls.push(input);
+      return Promise.resolve(new Response(null, { status: 200 }));
+    };
+    expect(await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache: fake.cache, fetcher })).toBeNull();
+    expect(calls).toHaveLength(0);
+  }
+});
+
+test("a cache read rejection yields nothing", async () => {
+  const cache = {
+    match: () => Promise.reject(new Error("cache down")),
+    put: () => Promise.resolve(),
+  };
+  expect(await facebookVideo(new URL(REEL), { origin: "https://bl.example", cache, fetcher: () => Promise.resolve(new Response(null, { status: 200 })) })).toBeNull();
+});
