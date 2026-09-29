@@ -162,7 +162,9 @@ async function mediaRedirect(
     } catch {
       return text(404, "not found");
     }
-    if (canonical.hostname !== host || !isFacebookPostUrl(canonical)) return text(404, "not found");
+    if (canonical.hostname !== host || !(isFacebookPostUrl(canonical) || isFacebookVideoUrl(canonical))) {
+      return text(404, "not found");
+    }
     const post = await loadFacebookPost(canonical, requestUrl.origin, deps);
     const item = post?.media[0];
     if (!post || item === undefined) return text(404, "not found");

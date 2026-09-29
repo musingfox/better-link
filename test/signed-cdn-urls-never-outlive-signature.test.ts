@@ -285,11 +285,35 @@ test("a facebook story media url redirects to the signed image", async () => {
   }
 });
 
-test("a facebook media url that is not a post is not found", async () => {
+const REEL_MEDIA = "https://bl.example/media/www.facebook.com/reel/1016339268064528";
+const REEL_PLUGIN =
+  "https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F1016339268064528";
+
+test("a facebook reel media url is not found when the video is unavailable", async () => {
+  const html = await facebookFixture("video-unavailable.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await call(app, REEL_MEDIA);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("not found");
+    expect(res.headers.get("location")).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(REEL_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook media url that is not a post or video is not found", async () => {
   const urls = [
     "https://bl.example/media/www.facebook.com/1",
     "https://bl.example/media/www.facebook.com/story.php",
-    "https://bl.example/media/www.facebook.com/reel/1016339268064528",
+    "https://bl.example/media/www.facebook.com/reel/abc",
+    "https://bl.example/media/www.facebook.com/reel/1016339268064528/extra",
+    "https://bl.example/media/www.facebook.com/watch/?v=",
     "https://bl.example/media/www.facebook.com.evil.example/a/posts/1",
   ];
   for (const url of urls) {
@@ -348,6 +372,17 @@ test("a facebook media url is not found when the cache binding throws", async ()
     },
   });
   const res = await call(app, MANNY_MEDIA);
+  expect(res.status).toBe(404);
+  expect(await res.text()).toBe("not found");
+});
+
+test("a facebook reel media url is not found when the cache binding throws", async () => {
+  const app = createWorker({
+    cache: () => {
+      throw new Error("no cache");
+    },
+  });
+  const res = await call(app, REEL_MEDIA);
   expect(res.status).toBe(404);
   expect(await res.text()).toBe("not found");
 });
