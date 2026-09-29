@@ -10,7 +10,7 @@ adr: null
 ---
 og 標籤裡的圖片和影片網址一律指向本服務的 `/media/...`，不直接放 CDN 網址；任何含有 CDN 網址的快取項目，保存時間都要短於簽章期限。
 
-`/media/<shortcode>/<n>` 在請求當下重新取得帶簽章的 CDN 網址，再以 `Cache-Control: no-store` 的 302 轉過去。Cache API 的保存時間是 24 小時；Facebook 媒體網址大約 4 天後過期。
+`/media/<shortcode>/<n>` 與 `/media/www.facebook.com/<路徑>?<query>` 在請求當下重新取得帶簽章的 CDN 網址，再以 `Cache-Control: no-store` 的 302 轉過去。Cache API 的保存時間是 24 小時；Facebook 貼文圖的 `oe` 在 2026-09-28 量到約 104–108 小時後過期（n=122）。
 
 分享連結的 og HTML 可以快取 24 小時，因為裡面只有 `/media/` 網址。Instagram 媒體網址的簽章 `oe` 在 2026-09-28 量到：圖片約 104–108 小時、影片 32–106 小時後過期，所以 24 小時快取最少仍有約 8 小時餘裕；快取時間不可再拉長。
 
