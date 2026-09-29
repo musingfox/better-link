@@ -2,6 +2,8 @@
 
 [English](README.md) | 繁體中文
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/musingfox/better-link)
+
 把社群貼文網址轉成乾淨、能在聊天軟體裡正常顯示預覽的分享連結。
 
 Instagram 和 Facebook 的連結貼到 Discord、Telegram 常常沒有預覽，或帶著 `igsh`、`fbclid` 這類追蹤碼。better-link 是一個 Cloudflare Worker，負責三件事：
@@ -64,6 +66,23 @@ curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Fi
 | `GET /www.instagram.com/p/<code>/<n>` | 多圖貼文的第 n 張（1 起算） |
 | `GET /media/...` | 302 到當下重新簽章的 CDN 圖片或影片網址，供 og 標籤使用 |
 
+## 部署自己的版本
+
+按下按鈕即可在 Cloudflare 部署一份自己的 better-link：
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/musingfox/better-link)
+
+Cloudflare 會把這個 repo 複製到你的 GitHub 或 GitLab 帳號、建置並部署 Worker，並接上 Workers Builds，之後推到那份複本就會自動重新部署。只需要 Cloudflare 帳號，Workers 免費方案就夠，也沒有 binding、環境變數或 secret 要填。Worker 名稱可以在設定頁改。
+
+部署完成後網址是 `https://better-link.<你的子網域>.workers.dev`（或你取的名稱），把上面範例中的 `https://link.example` 換成它即可，也可以在 Cloudflare 後台綁自訂網域。
+
+手動部署：
+
+```sh
+bun install
+bun run deploy   # wrangler deploy，第一次會要求登入 Cloudflare
+```
+
 ## 開發
 
 需要 [Bun](https://bun.sh)。
@@ -75,6 +94,6 @@ bun run check    # 型別檢查 + 單元測試
 bun run smoke    # 對真實 Instagram / Facebook 的端到端測試，需要網路
 ```
 
-部署用 wrangler（`bunx wrangler deploy`），設定在 `wrangler.jsonc`。專案只用 Workers 免費方案的功能，不需要任何 binding。
+設定在 `wrangler.jsonc`。專案只用 Workers 免費方案的功能，不需要任何 binding。
 
 設計約束寫在 [`docs/spec/`](docs/spec/)，例如每請求 CPU 10ms 上限、失敗時退回原網址、og 標籤不直接放會過期的 CDN 網址。修改程式前先讀相關規格；給 AI 代理的說明在 [`CLAUDE.md`](CLAUDE.md)（`AGENTS.md` 是它的 symlink）。
