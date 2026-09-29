@@ -369,6 +369,45 @@ test("a mobile facebook share link converts to the cleaned mobile canonical url"
   }
 });
 
+test("raw=1 returns the cleaned original instead of a share link", async () => {
+  const res = await call(
+    "https://bl.example/?raw=1&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ%26t%3D42%26si%3Dabc",
+  );
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+  expect(await res.text()).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42");
+});
+
+test("raw=1 returns the https original without the fragment", async () => {
+  const res = await call("https://bl.example/?raw=1&url=http%3A%2F%2Fexample.com%2Fa%3Futm_source%3Dx%26id%3D1%23frag");
+  expect(await res.text()).toBe("https://example.com/a?id=1");
+});
+
+test("raw=1 returns the expanded and cleaned facebook post", async () => {
+  const spy = stubFetch(() => Promise.resolve(redirectTo(FB_POST_LOC)));
+  try {
+    const res = await call(
+      `https://bl.example/?raw=1&url=${encodeURIComponent("https://www.facebook.com/share/p/1Fu5ScGFUZ/")}`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(
+      "https://www.facebook.com/mannynewsletter/posts/pfbid02w1fJYqdqq36s8V1wsTDognPKniCQ8E6BkEzHehiNe1zWZxgB67EV4Nz9cyLxtnqol",
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("raw=1 still rejects an invalid url", async () => {
+  expect((await call("https://bl.example/?raw=1&url=javascript%3Aalert(1)")).status).toBe(400);
+});
+
+test("a raw value other than 1 still returns a share link", async () => {
+  const res = await call("https://bl.example/?raw=0&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc");
+  expect(await res.text()).toBe("https://bl.example/www.youtube.com/watch?v=abc");
+});
+
 test("a share link that does not redirect converts from the cleaned short link", async () => {
   const spy = stubFetch(() => Promise.resolve(new Response(null, { status: 200 })));
   try {

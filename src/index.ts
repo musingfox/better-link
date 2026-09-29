@@ -38,7 +38,8 @@ async function convert(requestUrl: URL): Promise<Response> {
   }
   if (!isShareable(target)) return text(400, CONVERT_HINT);
   const cleaned = cleanUrl((await expandShareLink(target)) ?? target);
-  return text(200, `${requestUrl.origin}/${cleaned.host}${cleaned.pathname}${cleaned.search}`);
+  const prefix = requestUrl.searchParams.get("raw") === "1" ? "https://" : `${requestUrl.origin}/`;
+  return text(200, `${prefix}${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
 async function loadPost(
