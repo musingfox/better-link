@@ -14,11 +14,23 @@ function nonEmpty(url: URL, name: string): boolean {
   return value !== null && value !== "";
 }
 
+const REEL_PATH = /^\/reel\/\d+\/?$/;
+const PAGE_VIDEO_PATH = /^\/[^/]+\/videos\/(?:[^/]+\/)?\d+\/?$/;
+const WATCH_PATHS = new Set(["/watch", "/watch/"]);
+
 export function isFacebookPostUrl(url: URL): boolean {
   if (!FACEBOOK_HOSTS.has(url.hostname)) return false;
   if (POST_PATH.test(url.pathname)) return true;
   if (STORY_PATHS.has(url.pathname)) return nonEmpty(url, "story_fbid") && nonEmpty(url, "id");
   if (PHOTO_PATHS.has(url.pathname)) return nonEmpty(url, "fbid");
+  return false;
+}
+
+export function isFacebookVideoUrl(url: URL): boolean {
+  if (!FACEBOOK_HOSTS.has(url.hostname)) return false;
+  if (REEL_PATH.test(url.pathname)) return true;
+  if (PAGE_VIDEO_PATH.test(url.pathname)) return true;
+  if (WATCH_PATHS.has(url.pathname)) return nonEmpty(url, "v");
   return false;
 }
 
