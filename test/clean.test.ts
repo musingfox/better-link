@@ -179,3 +179,16 @@ test("s and t are kept on hosts other than x and twitter", () => {
   expect(cleanUrl(new URL("https://example.com/?s=term&t=1")).href).toBe("https://example.com/?s=term&t=1");
   expect(cleanUrl(new URL("https://fixupx.com/jack/status/20?s=46")).href).toBe("https://fixupx.com/jack/status/20?s=46");
 });
+
+test("threads drops the share parameter xmt", () => {
+  expect(
+    cleanUrl(new URL("https://www.threads.com/@from_me_realtor/post/Dd46uy8kjpH?xmt=AQG0w6rF3FjZdQGP89R4GjLqUrhF11MHAroGTOJfuXWfjQ")).href,
+  ).toBe("https://www.threads.com/@from_me_realtor/post/Dd46uy8kjpH");
+  expect(cleanUrl(new URL("https://threads.net/@zuck/post/CuP48CiS5sx?XMT=abc&keep=1")).href).toBe(
+    "https://threads.net/@zuck/post/CuP48CiS5sx?keep=1",
+  );
+});
+
+test("xmt is kept on hosts other than threads", () => {
+  expect(cleanUrl(new URL("https://example.com/?xmt=1")).href).toBe("https://example.com/?xmt=1");
+});
