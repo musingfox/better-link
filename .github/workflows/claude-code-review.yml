@@ -20,6 +20,10 @@ jobs:
       # Copies of this repository without the secret skip instead of failing.
       HAS_CREDENTIALS: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
     steps:
+      - name: Report missing credentials
+        if: env.HAS_CREDENTIALS != 'true'
+        run: echo "::warning::No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY repository secret is visible to Actions; skipping the review."
+
       - uses: actions/checkout@v6
         if: env.HAS_CREDENTIALS == 'true'
         with:
