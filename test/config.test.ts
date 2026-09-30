@@ -23,3 +23,9 @@ test("wrangler config is only wrangler.jsonc", async () => {
   expect(await Bun.file(new URL("../wrangler.toml", import.meta.url)).exists()).toBe(false);
   expect(await Bun.file(new URL("../wrangler.json", import.meta.url)).exists()).toBe(false);
 });
+
+test("bun.lock stays at lockfile version 1 so Workers Builds' default Bun can install it", async () => {
+  // Bun 1.2.15, the Workers Builds default, rejects lockfileVersion 2 under --frozen-lockfile.
+  const text = await Bun.file(new URL("../bun.lock", import.meta.url)).text();
+  expect(text).toMatch(/"lockfileVersion": 1,/);
+});
