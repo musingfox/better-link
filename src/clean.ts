@@ -17,8 +17,11 @@ const X_HOSTS = new Set([
   "m.twitter.com",
 ]);
 
+const THREADS_HOSTS = new Set(["threads.net", "www.threads.net", "threads.com", "www.threads.com"]);
+
 const INSTAGRAM_PARAMS = new Set(["img_index"]);
 const X_SHARE_PARAMS = new Set(["s", "t"]);
+const THREADS_SHARE_PARAMS = new Set(["xmt"]);
 const YOUTUBE_PARAMS = new Set(["v", "t", "list", "index"]);
 
 const BLOCKED_NAMES = new Set([
@@ -53,6 +56,7 @@ function keepSegment(hostname: string, name: string): boolean {
   if (INSTAGRAM_HOSTS.has(hostname)) return INSTAGRAM_PARAMS.has(name);
   if (YOUTUBE_HOSTS.has(hostname)) return YOUTUBE_PARAMS.has(name);
   if (X_HOSTS.has(hostname) && X_SHARE_PARAMS.has(name.toLowerCase())) return false;
+  if (THREADS_HOSTS.has(hostname) && THREADS_SHARE_PARAMS.has(name.toLowerCase())) return false;
   return !blocked(name);
 }
 
