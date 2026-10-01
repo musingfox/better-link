@@ -12,5 +12,5 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["worker-configuration.d.ts", "src/**/*.ts"]
+  "include": [".cloudflare/types/index.d.ts", "src/**/*.ts"]
 }

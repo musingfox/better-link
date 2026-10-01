@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["bun"]
   },
-  "include": ["worker-configuration.d.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": [".cloudflare/types/index.d.ts", "src/**/*.ts", "test/**/*.ts"]
 }
