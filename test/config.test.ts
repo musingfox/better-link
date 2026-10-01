@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { WorkerConfig } from "cf/config";
+import { bindings, exports, type WorkerConfig } from "cf/config";
 import config from "../cloudflare.config";
 
 const STORAGE_BINDING = /"type":"(kv|r2|d1|durable-object|queue)"/;
@@ -9,9 +9,11 @@ test("cf config names an entrypoint and declares no storage binding", () => {
   expect(JSON.stringify(config).match(STORAGE_BINDING)).toBeNull();
 });
 
-test("the storage-binding pattern matches a known-bad sample", () => {
-  const sample = { worker: { env: { CACHE: { type: "kv" } }, exports: { Room: { type: "durable-object" } } } };
-  expect(JSON.stringify(sample).match(STORAGE_BINDING)).not.toBeNull();
+test("the storage-binding pattern matches every storage binding cf/config can build", () => {
+  const samples = [bindings.kv(), bindings.r2(), bindings.d1(), bindings.queue(), exports.durableObject({ storage: "sqlite" })];
+  for (const sample of samples) {
+    expect(JSON.stringify({ worker: { env: { X: sample } } }).match(STORAGE_BINDING)).not.toBeNull();
+  }
 });
 
 test("cf config records every request in Workers Logs", () => {
