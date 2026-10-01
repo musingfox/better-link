@@ -17,38 +17,16 @@ reviews:
     - "!test/fixtures/**"
 
   path_instructions:
-    - path: "src/**/*.ts"
-      instructions: >-
-        Read CLAUDE.md and the specs in docs/spec/ whose `scope` covers this file before reviewing.
-        Flag violations of: CPU <= 10ms and <= 50 subrequests per request (parse with indexOf, no DOM,
-        no image or video processing); fail-open (any fetch or parse failure on a share link endpoint
-        must 302 to the cleaned original URL, never an error page or an og page missing media);
-        fix-service domains appearing anywhere but src/fix-services.ts; KV / R2 / D1 / Durable Objects /
-        Queues usage instead of caches.default; CDN URLs in og tags or cache lifetimes for CDN URLs
-        longer than 24 hours; tracking-parameter rules outside src/clean.ts.
-        Also flag upstream HTML parsing that does not return null when a field is missing.
-    - path: "test/**/*.ts"
-      instructions: >-
-        Tests must not hit the network: fetch is replaced with spyOn(globalThis, "fetch") and upstream
-        pages come from test/fixtures/. Flag new behavior in src/ without a matching test.
-    - path: "wrangler.jsonc"
-      instructions: >-
-        Only Workers free plan features. Flag any binding (kv_namespaces, r2_buckets, d1_databases,
-        durable_objects, queues). The README's Deploy to Cloudflare button must keep working with no
-        bindings, variables or secrets.
     - path: "README*.md"
       instructions: >-
-        README.md (English) and README.zh-TW.md (Traditional Chinese) must stay in sync; flag a change
-        to one without the matching change to the other. Fix-service domains must not be written out.
-    - path: "docs/spec/*.md"
-      instructions: >-
-        Specs are in Traditional Chinese with frontmatter id, status, scope, verify, related, source, adr.
-        Body order: the rule in one sentence, details and measurements with date and sample size,
-        out of scope, why a violation would go unnoticed. Flag when CLAUDE.md's spec list is not updated.
+        Fix-service domains must not be written out.
 
 knowledge_base:
   code_guidelines:
     enabled: true
+    # Guideline files apply only to their own directory unless mapped with applyTo.
     filePatterns:
-      - "CLAUDE.md"
-      - "docs/spec/*.md"
+      - files: "docs/spec/*.md"
+        applyTo: "src/**/*.ts"
+      - files: "docs/spec/free-plan-bindings-only.md"
+        applyTo: "cloudflare.config.ts"
