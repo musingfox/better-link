@@ -80,12 +80,13 @@ Cloudflare 會把這個 repo 複製到你的 GitHub 或 GitLab 帳號、建置�
 
 ```sh
 bun install
-bun run deploy   # wrangler deploy，第一次會要求登入 Cloudflare
+npx cf auth login   # 只需一次；cf 不沿用 Wrangler 的登入
+bun run deploy      # cf deploy
 ```
 
 ## 開發
 
-需要 [Bun](https://bun.sh)。
+需要 [Bun](https://bun.sh) 和 Node.js 22.18 以上。
 
 ```sh
 bun install
@@ -94,6 +95,6 @@ bun run check    # 型別檢查 + 單元測試
 bun run smoke    # 對真實 Instagram / Facebook 的端到端測試，需要網路
 ```
 
-設定在 `wrangler.jsonc`。專案只用 Workers 免費方案的功能，不需要任何 binding。
+設定在 `cloudflare.config.ts`。專案只用 Workers 免費方案的功能，不需要任何 binding。
 
 設計約束寫在 [`docs/spec/`](docs/spec/)，例如每請求 CPU 10ms 上限、失敗時退回原網址、og 標籤不直接放會過期的 CDN 網址。修改程式前先讀相關規格；給 AI 代理的說明在 [`CLAUDE.md`](CLAUDE.md)（`AGENTS.md` 是它的 symlink）。
