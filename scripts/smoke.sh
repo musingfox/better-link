@@ -6,10 +6,10 @@ cd "$(dirname "$0")/.."
 mkdir -p .wrangler/home
 export HOME="$PWD/.wrangler/home"
 
-./node_modules/.bin/wrangler --version
+./node_modules/.bin/cf --version
 
 mkdir -p .wrangler
-WRANGLER_SEND_METRICS=false ./node_modules/.bin/wrangler dev --ip 127.0.0.1 --port 8799 >.wrangler/smoke.log 2>&1 &
+WRANGLER_SEND_METRICS=false ./node_modules/.bin/cf dev --port 8799 >.wrangler/smoke.log 2>&1 &
 pid=$!
 tmp=$(mktemp -d)
 cleanup() {
@@ -28,7 +28,7 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 if [ "$ready" -ne 1 ]; then
-  echo "wrangler dev did not become ready" >&2
+  echo "cf dev did not become ready" >&2
   tail -n 80 .wrangler/smoke.log >&2 || true
   exit 1
 fi
