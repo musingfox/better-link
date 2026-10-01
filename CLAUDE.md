@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-better-link is a Cloudflare Worker that turns social media post URLs into share links with tracking parameters removed and working previews in chat apps such as Discord and Telegram. For Instagram and Facebook the Worker fetches the data itself and renders an og page; other platforms are handed off to existing fix services (fixupx, etc.).
+better-link is a Cloudflare Worker that turns social media post URLs into clean share links with working previews in chat apps. `README.md` covers what it does, its endpoints and how to deploy it.
 
 ## Commands
 
@@ -26,25 +26,7 @@ bun run smoke        # starts cf dev on port 8799 and sends end-to-end requests 
 
 ## Architecture
 
-`src/index.ts` is the only entry point and splits into three endpoints by path:
-
-| Path | Handler | Behavior |
-| --- | --- | --- |
-| `GET /?url=<percent-encoded>` | `convert` | Expands FB/IG `/share/` short links, strips tracking parameters, returns the share link as `text/plain`. With `raw=1` returns the cleaned original URL instead |
-| `GET /<original host>/<path>` | `shareRedirect` | Non-crawlers: 302 to the cleaned original URL. Crawlers: og HTML for IG posts and FB posts/videos; 302 to the fix service for platforms in the fix-service table; 302 to the original URL otherwise |
-| `GET /media/...` | `mediaRedirect` | Re-fetches a signed CDN URL on the spot and returns a 302 with `Cache-Control: no-store` |
-
-Module responsibilities:
-
-- `clean.ts`: tracking parameter removal. Platforms the Worker supports itself (Instagram, YouTube) use an allowlist, others use a denylist; X/Twitter additionally drops `s` and `t`.
-- `expand.ts`: `/share/` short link expansion (HEAD with a `Go-http-client/1.1` UA, at most 3 hops, 5 seconds) and `isShareable`.
-- `crawler.ts`: detects crawlers by UA substring.
-- `fix-services.ts`: the single mapping from other platforms to fix services.
-- `instagram.ts`: fetches the `/embed/captioned/` page, parses it into a `Post`, and caches it with the Cache API.
-- `facebook.ts`: fetches `plugins/post.php` / `plugins/video.php` and parses the post image or video.
-- `og.ts`: renders a `Post` into og / twitter card HTML.
-
-`createWorker({ cache })` lets tests inject a fake cache (`test/support/fake-cache.ts`); fetches are replaced in tests with `spyOn(globalThis, "fetch")`. Upstream pages are saved as HTML under `test/fixtures/`, and all parsing tests run against fixtures without hitting the network.
+`ARCHITECTURE.md` maps the modules, how a request is routed, and how tests replace the cache and `fetch`.
 
 ## Specs (`docs/spec/`)
 
