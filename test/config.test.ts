@@ -21,6 +21,12 @@ test("cf config records every request in Workers Logs", () => {
   expect(observability?.logs?.headSamplingRate ?? 1).toBe(1);
 });
 
+test("no wrangler config file sits beside cloudflare.config.ts", async () => {
+  for (const name of ["wrangler.jsonc", "wrangler.json", "wrangler.toml"]) {
+    expect(await Bun.file(new URL(`../${name}`, import.meta.url)).exists()).toBe(false);
+  }
+});
+
 test("bun.lock stays at lockfile version 1 so Workers Builds' default Bun can install it", async () => {
   // Bun 1.2.15, the Workers Builds default, rejects lockfileVersion 2 under --frozen-lockfile.
   const text = await Bun.file(new URL("../bun.lock", import.meta.url)).text();
