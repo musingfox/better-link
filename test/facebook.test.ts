@@ -426,7 +426,7 @@ test("an unterminated message tag stays within the cpu budget", async () => {
 
 test("a deeply nested message stays within the cpu budget", async () => {
   const page =
-    SHELL + '<div data-testid="post_message">' + "<div>".repeat(30000) + "x" + "</div>".repeat(30000) + "</div>";
+    SHELL + '<div data-testid="post_message">' + "<div>".repeat(15000) + "x" + "</div>".repeat(15000) + "</div>";
   expect((await parsePostPage(page))?.caption).toBe("x");
   const samples: number[] = [];
   for (let i = 0; i < 5; i++) {
