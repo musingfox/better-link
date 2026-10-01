@@ -19,7 +19,7 @@ bun run smoke        # starts cf dev on port 8799 and sends end-to-end requests 
 
 - `.cloudflare/` holds generated types and build output and is gitignored. Until typecheck has run, types such as `Env` and `ExecutionContext` are missing. `wrangler.config.ts` sets `types.generate: false`, so `cf dev` and `cf build` do not regenerate them.
 - The README's Deploy to Cloudflare button relies on `cloudflare.config.ts`, the `deploy` script and the `cloudflare` field in `package.json`. Do not add a Wrangler config file; `test/config.test.ts` fails if one appears. Keep it working without any bindings, variables or secrets, so a fresh copy deploys with no setup.
-- `bun.lock` must stay at `lockfileVersion` 1. Workers Builds installs with Bun 1.2.15 by default, which rejects version 2 under `--frozen-lockfile`; Bun 1.4 reads version 1 without rewriting it but writes version 2 when it regenerates the lock. `test/config.test.ts` fails if that happens; regenerate the lock with Bun 1.3.
+- `bun.lock` stays at `lockfileVersion` 1 so Workers Builds' default Bun 1.2.15 can install it (checked by `test/config.test.ts`); regenerate it with Bun 1.3.
 - Pull requests are reviewed by CodeRabbit (GitHub App), configured in `.coderabbit.yaml`. Its `knowledge_base` applies `docs/spec/*.md` to the files in their `scope`; when a spec's `scope` gains a path, add it there.
 - GitHub Actions (`.github/workflows/ci.yml`) runs `bun install --frozen-lockfile` and `bun run check` with Bun 1.3.11 and Node 24 on pull requests and pushes to `main`. Keep its Bun version on 1.3 so the lock stays at version 1.
 - `smoke` needs outbound network access and its result depends on what upstream returns at the time, so it is not suitable as a required CI check.
