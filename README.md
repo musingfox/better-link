@@ -80,12 +80,13 @@ To deploy manually instead:
 
 ```sh
 bun install
-bun run deploy   # wrangler deploy, logs in to Cloudflare on first run
+npx cf auth login   # once; cf does not reuse a Wrangler login
+bun run deploy      # cf deploy
 ```
 
 ## Development
 
-Requires [Bun](https://bun.sh).
+Requires [Bun](https://bun.sh) and Node.js 22.18 or later.
 
 ```sh
 bun install
@@ -94,6 +95,6 @@ bun run check    # typecheck + unit tests
 bun run smoke    # end-to-end tests against real Instagram / Facebook, needs network
 ```
 
-Configuration lives in `wrangler.jsonc`. The project only uses features of the Workers free plan and needs no bindings.
+Configuration lives in `cloudflare.config.ts`. The project only uses features of the Workers free plan and needs no bindings.
 
 Design constraints are written in [`docs/spec/`](docs/spec/) (in Traditional Chinese), e.g. the 10ms CPU limit per request, falling back to the original URL on failure, and never putting expiring CDN URLs directly in og tags. Read the relevant specs before changing code. Instructions for AI agents are in [`CLAUDE.md`](CLAUDE.md) (`AGENTS.md` is a symlink to it).
