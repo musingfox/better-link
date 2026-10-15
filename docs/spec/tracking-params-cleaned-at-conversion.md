@@ -4,7 +4,7 @@ status: accepted
 scope:
   - "src/**"
 verify: check:bun test ./test/clean.test.ts ./test/expand.test.ts
-related: [fail-open-to-original]
+related: [fail-open-to-original, shared-links-logged-to-kv-at-conversion]
 source: better-link-design-spec
 adr: null
 ---

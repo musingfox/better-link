@@ -30,3 +30,5 @@ knowledge_base:
         applyTo: "src/**/*.ts"
       - files: "docs/spec/free-plan-bindings-only.md"
         applyTo: "cloudflare.config.ts"
+      - files: "docs/spec/shared-links-logged-to-kv-at-conversion.md"
+        applyTo: "cloudflare.config.ts"
