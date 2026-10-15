@@ -2,7 +2,7 @@ import { expect, spyOn, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { Fetcher } from "../src/expand";
-import { instagramPost, parseEmbed } from "../src/instagram";
+import { instagramPost, parseEmbed, shortcodeOfMediaId } from "../src/instagram";
 import { fakeCache } from "./support/fake-cache";
 
 const EGG_MEDIA =
@@ -706,4 +706,21 @@ test("saved embed fixtures do not contain session tokens", async () => {
     expect(text.match(SESSION_TOKEN)).toBeNull();
     expect(text.match(CSRF_COOKIE)).toBeNull();
   }
+});
+
+test("a story media id converts to the shortcode its embed page answers to", () => {
+  expect(shortcodeOfMediaId("4008480323595433675")).toBe("Deg-53RDHbL");
+});
+
+test("a media id outside the digit grammar has no shortcode", () => {
+  for (const id of ["", "0", "012", "12a", "-1", "1".repeat(21)]) {
+    expect(shortcodeOfMediaId(id)).toBeNull();
+  }
+});
+
+test("a story's embed page yields the account and its video", async () => {
+  const post = parseEmbed(await fixture("embed-Deg-53RDHbL.html"));
+  expect(post?.username).toBe("mkcrtw");
+  expect(post?.media).toHaveLength(1);
+  expect(post?.media[0]?.kind).toBe("video");
 });

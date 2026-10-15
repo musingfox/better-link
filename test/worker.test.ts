@@ -1933,3 +1933,65 @@ test("facebook video caller credentials are not written to the console", async (
     errors.mockRestore();
   }
 });
+
+test("a crawler preview of a story fetches the embed of its media id and keeps the story url", async () => {
+  const html = await instagramFixture("embed-Deg-53RDHbL.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(
+      app,
+      "https://bl.example/www.instagram.com/stories/mkcrtw/4008480323595433675/?igsh=x",
+      { "User-Agent": DISCORD },
+    );
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe("https://www.instagram.com/p/Deg-53RDHbL/embed/captioned/");
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:video" content="https://bl.example/media/Deg-53RDHbL/1">');
+    expect(body).toContain(
+      '<meta property="og:url" content="https://www.instagram.com/stories/mkcrtw/4008480323595433675/">',
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler on an unavailable story gets the story url", async () => {
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response("", { status: 404 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/stories/mkcrtw/4008480323595433675", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/stories/mkcrtw/4008480323595433675");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler on a story highlight does not fetch or touch the cache", async () => {
+  const fake = fakeCache();
+  const app = createWorker({ cache: () => fake.cache });
+  const spy = stubFetch(() => Promise.reject(new TypeError("fetch failed")));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/stories/highlights/17861234567890123/", {
+      "User-Agent": DISCORD,
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.instagram.com/stories/highlights/17861234567890123/");
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(fake.calls.match).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a browser on a story lands on the story", async () => {
+  const res = await call("https://bl.example/www.instagram.com/stories/mkcrtw/4008480323595433675/", {
+    "User-Agent": CHROME,
+  });
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("https://www.instagram.com/stories/mkcrtw/4008480323595433675/");
+});

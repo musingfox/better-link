@@ -112,6 +112,22 @@ export function isShortcode(value: string): boolean {
   return SHORTCODE.test(value);
 }
 
+const SHORTCODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const MEDIA_ID = /^[1-9]\d{0,19}$/;
+
+// A story has no shortcode of its own, but its media id written in Instagram's
+// base64 alphabet is one the /p/<shortcode>/embed/ page answers to.
+export function shortcodeOfMediaId(id: string): string | null {
+  if (!MEDIA_ID.test(id)) return null;
+  let rest = BigInt(id);
+  let shortcode = "";
+  while (rest > 0n) {
+    shortcode = SHORTCODE_ALPHABET[Number(rest % 64n)] + shortcode;
+    rest /= 64n;
+  }
+  return shortcode;
+}
+
 function isMedia(value: unknown): value is Media {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
