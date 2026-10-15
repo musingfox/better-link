@@ -3,12 +3,25 @@ import { isCrawler } from "./crawler";
 import { FACEBOOK_HOSTS, expandShareLink, isShareable } from "./expand";
 import { facebookPost, facebookVideo, isFacebookPostUrl, isFacebookVideoUrl } from "./facebook";
 import { fixServiceUrl } from "./fix-services";
-import { instagramPost, isShortcode, type Post, type PostCache } from "./instagram";
+import { instagramPost, isShortcode, shortcodeOfMediaId, type Post, type PostCache } from "./instagram";
 import { renderOgPage } from "./og";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 const POST_PATH = /^\/(p|reel)\/([^/]+)(?:\/([1-9]\d?))?\/?$/;
 const ITEM_SUFFIX = /^\/(p|reel)\/([^/]+)\/([1-9]\d?)\/?$/;
+const STORY_PATH = /^\/stories\/([^/]+)\/([^/]+)\/?$/;
+
+function instagramShortcode(pathname: string): { shortcode: string; index: number } | null {
+  const post = POST_PATH.exec(pathname);
+  if (post?.[2] !== undefined && isShortcode(post[2])) {
+    return { shortcode: post[2], index: post[3] === undefined ? 1 : Number(post[3]) };
+  }
+  const story = STORY_PATH.exec(pathname);
+  // A highlight id names a collection, not a media, so it has no embed page.
+  if (story?.[1] === undefined || story[1] === "highlights" || story[2] === undefined) return null;
+  const shortcode = shortcodeOfMediaId(story[2]);
+  return shortcode === null ? null : { shortcode, index: 1 };
+}
 
 function landingUrl(cleaned: URL): URL {
   if (!INSTAGRAM_HOSTS.has(cleaned.hostname)) return cleaned;
@@ -131,15 +144,9 @@ async function shareRedirect(
   }
   const cleaned = cleanUrl(candidate);
   const landing = landingUrl(cleaned);
-  const postMatch = POST_PATH.exec(cleaned.pathname);
-  if (
-    isCrawler(userAgent) &&
-    INSTAGRAM_HOSTS.has(cleaned.hostname) &&
-    postMatch?.[2] !== undefined &&
-    isShortcode(postMatch[2])
-  ) {
-    const index = postMatch[3] === undefined ? 1 : Number(postMatch[3]);
-    return instagramOg(requestUrl, landing, postMatch[2], index, deps);
+  const instagram = INSTAGRAM_HOSTS.has(cleaned.hostname) ? instagramShortcode(cleaned.pathname) : null;
+  if (isCrawler(userAgent) && instagram !== null) {
+    return instagramOg(requestUrl, landing, instagram.shortcode, instagram.index, deps);
   }
   if (isCrawler(userAgent) && (isFacebookPostUrl(cleaned) || isFacebookVideoUrl(cleaned))) {
     return facebookOg(requestUrl, cleaned, deps);
