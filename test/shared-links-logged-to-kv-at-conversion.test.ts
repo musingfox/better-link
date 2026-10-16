@@ -4,7 +4,11 @@ import { logSharedLink } from "../src/shared-link-log";
 import { fakeCache } from "./support/fake-cache";
 import { fakeKv } from "./support/fake-kv";
 
-const KEY = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z-[0-9a-f-]{36}$/;
+const KEY = /^\d{13}-[0-9a-f-]{36}$/;
+
+function atOf(key: string | undefined): string {
+  return new Date(9_999_999_999_999 - Number(key?.slice(0, 13))).toISOString();
+}
 const YOUTUBE = "https://www.youtube.com/watch?v=abc";
 
 afterEach(() => setSystemTime());
@@ -33,7 +37,7 @@ test("one conversion writes one expiring, time-keyed record", async () => {
   expect(kv.puts).toHaveLength(1);
   const [put] = kv.puts;
   expect(put?.key).toMatch(KEY);
-  const at = put?.key.slice(0, 24);
+  const at = atOf(put?.key);
   expect(put?.options.expirationTtl).toBe(7_776_000);
   expect(put?.value).toBe(YOUTUBE);
   expect(put?.options.metadata).toEqual({ url: YOUTUBE, at });
@@ -45,10 +49,10 @@ test("raw conversions record raw: true in metadata", async () => {
   logSharedLink(envWith(kv.binding), ctx, YOUTUBE, true);
   await Promise.all(pending);
   const [put] = kv.puts;
-  expect(put?.options.metadata).toEqual({ url: YOUTUBE, at: put?.key.slice(0, 24), raw: true });
+  expect(put?.options.metadata).toEqual({ url: YOUTUBE, at: atOf(put?.key), raw: true });
 });
 
-test("keys from later calls sort after keys from earlier calls", async () => {
+test("keys from later calls sort before keys from earlier calls", async () => {
   const kv = fakeKv();
   const { ctx, pending } = fakeCtx();
   setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
@@ -57,7 +61,7 @@ test("keys from later calls sort after keys from earlier calls", async () => {
   logSharedLink(envWith(kv.binding), ctx, YOUTUBE, false);
   await Promise.all(pending);
   const keys = kv.puts.map((put) => put.key);
-  expect(keys).toEqual([...keys].sort());
+  expect(keys).toEqual([...keys].sort().reverse());
 });
 
 test("calls under one frozen time share the timestamp prefix and differ in key", async () => {
@@ -69,8 +73,10 @@ test("calls under one frozen time share the timestamp prefix and differ in key",
   await Promise.all(pending);
   const [first, second] = kv.puts;
   expect(first?.key).not.toBe(second?.key);
-  expect(first?.key.slice(0, 24)).toBe("2026-03-03T03:03:03.003Z");
-  expect(second?.key.slice(0, 24)).toBe("2026-03-03T03:03:03.003Z");
+  const prefix = String(9_999_999_999_999 - Date.parse("2026-03-03T03:03:03.003Z"));
+  expect(first?.key.slice(0, 13)).toBe(prefix);
+  expect(second?.key.slice(0, 13)).toBe(prefix);
+  expect(first?.options.metadata.at).toBe("2026-03-03T03:03:03.003Z");
 });
 
 test("waitUntil is invoked as a method on ctx", () => {
@@ -218,7 +224,7 @@ test("a successful conversion writes one record and returns the same response", 
   expect(body).toEqual(plain);
   expect(body.body).toBe("https://bl.example/www.youtube.com/watch?v=abc");
   expect(withKv.puts).toHaveLength(1);
-  expect(withKv.puts[0]?.options.metadata).toEqual({ url: YOUTUBE, at: withKv.puts[0]?.key.slice(0, 24) });
+  expect(withKv.puts[0]?.options.metadata).toEqual({ url: YOUTUBE, at: atOf(withKv.puts[0]?.key) });
   expect(withKv.puts[0]?.options.expirationTtl).toBe(7_776_000);
 });
 

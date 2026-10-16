@@ -128,6 +128,21 @@ export function shortcodeOfMediaId(id: string): string | null {
   return shortcode;
 }
 
+const POST_PATH = /^\/(p|reel)\/([^/]+)(?:\/([1-9]\d?))?\/?$/;
+const STORY_PATH = /^\/stories\/([^/]+)\/([^/]+)\/?$/;
+
+export function instagramShortcode(pathname: string): { shortcode: string; index: number } | null {
+  const post = POST_PATH.exec(pathname);
+  if (post?.[2] !== undefined && isShortcode(post[2])) {
+    return { shortcode: post[2], index: post[3] === undefined ? 1 : Number(post[3]) };
+  }
+  const story = STORY_PATH.exec(pathname);
+  // A highlight id names a collection, not a media, so it has no embed page.
+  if (story?.[1] === undefined || story[1] === "highlights" || story[2] === undefined) return null;
+  const shortcode = shortcodeOfMediaId(story[2]);
+  return shortcode === null ? null : { shortcode, index: 1 };
+}
+
 function isMedia(value: unknown): value is Media {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
