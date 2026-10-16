@@ -6,7 +6,7 @@ better-link is a single Cloudflare Worker with three kinds of request. A convers
 
 ## Codemap
 
-- `src/index.ts` is the only entry point. `createWorker` routes `/` to `convert`, paths under `/media/` to `mediaRedirect`, and every other path to `shareRedirect`.
+- `src/index.ts` is the only entry point. `createWorker` routes `/` to `convert`, paths under `/media/` to `mediaRedirect`, `/log` to `sharedLinkLogPage` when the log binding exists, and every other path to `shareRedirect`.
 - `src/clean.ts` removes tracking parameters (`cleanUrl`).
 - `src/expand.ts` expands `/share/` short links (`expandShareLink`) and decides which URLs can be converted (`isShareable`).
 - `src/crawler.ts` tells crawlers from people by User-Agent (`isCrawler`).
@@ -16,6 +16,7 @@ better-link is a single Cloudflare Worker with three kinds of request. A convers
 - `src/og.ts` renders a `Post` into og and twitter card HTML (`renderOgPage`).
 - `cloudflare.config.ts` holds the Worker settings that `cf` reads. It declares the `SHARED_LINKS` KV binding only when the build variable `LOG_SHARED_LINKS` is `1`.
 - `src/shared-link-log.ts` (`logSharedLink`) writes one record per successful `GET /?url=` to `env.SHARED_LINKS` through `ctx.waitUntil`. Without the binding it does nothing.
+- `src/shared-link-log-page.ts` (`sharedLinkLogPage`) renders `GET /log`: one `list` of a UTC day's keys, shown only when Cloudflare Access set `ctx.access`. Without the binding `/log` falls through to `shareRedirect`.
 
 ## Invariants
 

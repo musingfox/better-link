@@ -6,7 +6,7 @@ scope:
   - "src/index.ts"
   - "src/shared-link-log.ts"
 verify: check:bun test ./test/shared-links-logged-to-kv-at-conversion.test.ts
-related: [free-plan-bindings-only, fail-open-to-original, tracking-params-cleaned-at-conversion]
+related: [free-plan-bindings-only, fail-open-to-original, tracking-params-cleaned-at-conversion, shared-link-log-page-behind-access]
 source: null
 adr: null
 ---
