@@ -6,6 +6,7 @@ import { fixServiceUrl } from "./fix-services";
 import { instagramPost, isShortcode, shortcodeOfMediaId, type Post, type PostCache } from "./instagram";
 import { renderOgPage } from "./og";
 import { logSharedLink } from "./shared-link-log";
+import { hasSharedLinkLog, sharedLinkLogPage } from "./shared-link-log-page";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 const POST_PATH = /^\/(p|reel)\/([^/]+)(?:\/([1-9]\d?))?\/?$/;
@@ -206,6 +207,7 @@ export function createWorker(deps: { cache: () => PostCache }): {
       const url = new URL(request.url);
       if (url.pathname === "/") return convert(url, env, ctx);
       if (url.pathname.startsWith("/media/")) return mediaRedirect(url, deps);
+      if (url.pathname === "/log" && hasSharedLinkLog(env)) return sharedLinkLogPage(url, env, ctx);
       return shareRedirect(url, request.headers.get("User-Agent"), deps);
     },
   };
