@@ -290,3 +290,50 @@ test("the recorded url is the cleaned url the response points to", async () => {
   expect(kv.puts[0]?.value).toBe("https://www.instagram.com/p/BsOGulcndj-/");
   expect(kv.puts[0]?.value).not.toContain("igsh");
 });
+
+const BROWSER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36";
+const DISCORD_UA = "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)";
+
+function stubFetch(status: number) {
+  return spyOn(globalThis, "fetch").mockImplementation((() =>
+    Promise.resolve(new Response("", { status }))) as unknown as typeof fetch);
+}
+
+test("share redirects and media never touch kv", async () => {
+  const kv = fakeKv();
+  const env = envWith(kv.binding);
+  const spy = stubFetch(404);
+  try {
+    const cases: [string, string | undefined][] = [
+      ["https://bl.example/www.instagram.com/p/BsOGulcndj-/", BROWSER],
+      ["https://bl.example/www.instagram.com/p/BsOGulcndj-/", DISCORD_UA],
+      ["https://bl.example/media/BsOGulcndj-/1", undefined],
+    ];
+    for (const [url, ua] of cases) {
+      const { ctx, pending } = fakeCtx();
+      const headers = ua === undefined ? undefined : { "User-Agent": ua };
+      const app = appWithCache();
+      const plain = await app.fetch(new Request(url, { headers }), {} as Env, fakeCtx().ctx);
+      const withKv = await app.fetch(new Request(url, { headers }), env, ctx);
+      expect(withKv.status).toBe(plain.status);
+      expect(withKv.headers.get("location")).toBe(plain.headers.get("location"));
+      expect(pending).toHaveLength(0);
+    }
+    expect(kv.puts).toHaveLength(0);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("failed conversions never touch kv and keep their 400 response", async () => {
+  const kv = fakeKv();
+  const env = envWith(kv.binding);
+  for (const query of ["", "?url=", "?url=notaurl", "?url=http%3A%2F%2Flocalhost%2Fx"]) {
+    const { ctx, pending } = fakeCtx();
+    const res = await appWithCache().fetch(new Request(`https://bl.example/${query}`), env, ctx);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe("pass a percent-encoded http(s) URL as ?url=");
+    expect(pending).toHaveLength(0);
+  }
+  expect(kv.puts).toHaveLength(0);
+});
