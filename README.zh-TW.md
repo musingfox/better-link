@@ -74,6 +74,8 @@ curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Fi
 
 Cloudflare 會把這個 repo 複製到你的 GitHub 或 GitLab 帳號、建置並部署 Worker，並接上 Workers Builds，之後推到那份複本就會自動重新部署。只需要 Cloudflare 帳號，Workers 免費方案就夠，也沒有 binding、環境變數或 secret 要填。Worker 名稱可以在設定頁改。
 
+可選功能：要記錄 `GET /?url=` 產生的每一筆分享連結，在 Workers Builds 的建置變數設定 `LOG_SHARED_LINKS` 為 `1`。設定檔會宣告一個名為 `SHARED_LINKS` 的 KV binding，每筆紀錄 90 天後過期。沒有設定變數時不宣告任何 binding，Worker 的行為和以前相同。要取消時移除變數並重新部署即可移除 binding；命名空間和其中的紀錄會保留。
+
 部署完成後網址是 `https://better-link.<你的子網域>.workers.dev`（或你取的名稱），把上面範例中的 `https://link.example` 換成它即可，也可以在 Cloudflare 後台綁自訂網域。
 
 手動部署：
@@ -83,6 +85,8 @@ bun install
 npx cf auth login   # 只需一次；cf 不沿用 Wrangler 的登入
 bun run deploy      # cf deploy
 ```
+
+有啟用分享連結紀錄時，改用 `LOG_SHARED_LINKS=1 bun run deploy`。手動部署時少了這個變數，binding 就會被移除。
 
 ## 開發
 
@@ -95,6 +99,6 @@ bun run check    # 型別檢查 + 單元測試
 bun run smoke    # 對真實 Instagram / Facebook 的端到端測試，需要網路
 ```
 
-設定在 `cloudflare.config.ts`。專案只用 Workers 免費方案的功能，不需要任何 binding。
+設定在 `cloudflare.config.ts`。專案只用 Workers 免費方案的功能，預設不需要任何 binding；上面的分享連結紀錄是設定檔唯一可以宣告的 binding。
 
 設計約束寫在 [`docs/spec/`](docs/spec/)，例如每請求 CPU 10ms 上限、失敗時退回原網址、og 標籤不直接放會過期的 CDN 網址。修改程式前先讀相關規格；給 AI 代理的說明在 [`CLAUDE.md`](CLAUDE.md)（`AGENTS.md` 是它的 symlink）。

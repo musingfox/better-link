@@ -5,13 +5,13 @@ scope:
   - "cloudflare.config.ts"
   - "src/**"
 verify: check:bun test ./test/config.test.ts -t "storage.binding"
-related: [cpu-budget-10ms, signed-cdn-urls-never-outlive-signature]
+related: [cpu-budget-10ms, signed-cdn-urls-never-outlive-signature, shared-links-logged-to-kv-at-conversion]
 source: better-link-design-spec
 adr: null
 ---
-只使用 Workers 免費方案內含的功能，不宣告 KV、R2、D1、Durable Objects、Queues 或任何付費 binding。
+只使用 Workers 免費方案內含的功能，不宣告 KV、R2、D1、Durable Objects、Queues 或任何付費 binding；唯一的例外是部署的人用建置變數啟用、用來紀錄分享連結的一個 KV 命名空間，它是可選功能，寫法由 `shared-links-logged-to-kv-at-conversion` 規定。
 
-需要暫存的資料一律用 Cache API（`caches.default` 的 `put` 和 `match`）。`cloudflare.config.ts` 裡不出現任何儲存類 binding。
+需要暫存的資料一律用 Cache API（`caches.default` 的 `put` 和 `match`）。預設的 `cloudflare.config.ts` 裡不出現任何儲存類 binding。
 
 環境變數和 secrets 不算 binding，可以使用。Cache API 只存在寫入它的資料中心、不會同步到其他地方，這是接受的代價，不是要修的問題。
 

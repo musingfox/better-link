@@ -4,7 +4,7 @@ status: accepted
 scope:
   - "src/**"
 verify: check:bun test ./test/fail-open-to-original.test.ts
-related: [cpu-budget-10ms, tracking-params-cleaned-at-conversion]
+related: [cpu-budget-10ms, tracking-params-cleaned-at-conversion, shared-links-logged-to-kv-at-conversion]
 source: better-link-design-spec
 adr: null
 ---
