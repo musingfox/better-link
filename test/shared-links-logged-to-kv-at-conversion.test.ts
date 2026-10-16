@@ -162,3 +162,55 @@ test("a failed write logs nothing to the console", async () => {
     for (const spy of spies) spy.mockRestore();
   }
 });
+
+function sizeOf(metadata: object): number {
+  return new TextEncoder().encode(JSON.stringify(metadata)).byteLength;
+}
+
+function urlWithMetadataBytes(target: number): URL {
+  const at = "2026-04-04T04:04:04.004Z";
+  const base = sizeOf({ url: "https://example.com/", at });
+  return new URL(`https://example.com/${"a".repeat(target - base)}`);
+}
+
+test("metadata keeps the url when it is exactly 1,024 bytes", async () => {
+  setSystemTime(new Date("2026-04-04T04:04:04.004Z"));
+  const cleaned = urlWithMetadataBytes(1_024);
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  logSharedLink(envWith(kv.binding), ctx, cleaned, false);
+  await Promise.all(pending);
+  expect(sizeOf(kv.puts[0]?.options.metadata ?? {})).toBe(1_024);
+  expect(kv.puts[0]?.options.metadata).toHaveProperty("url", cleaned.href);
+});
+
+test("metadata drops the url at 1,025 bytes but still logs it as the value", async () => {
+  setSystemTime(new Date("2026-04-04T04:04:04.004Z"));
+  const cleaned = urlWithMetadataBytes(1_025);
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  logSharedLink(envWith(kv.binding), ctx, cleaned, false);
+  await Promise.all(pending);
+  expect(kv.puts[0]?.options.metadata).toEqual({ at: "2026-04-04T04:04:04.004Z" });
+  expect(kv.puts[0]?.value).toBe(`https://${cleaned.host}${cleaned.pathname}`);
+});
+
+test("the size limit counts bytes, not characters", async () => {
+  // 500 "é" are 1,000 bytes but only 500 characters; URL objects percent-encode non-ASCII,
+  // so this uses a plain object to reach the byte measure with multibyte text.
+  const cleaned = { host: "example.com", pathname: `/${"é".repeat(500)}`, search: "" } as unknown as URL;
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  logSharedLink(envWith(kv.binding), ctx, cleaned, false);
+  await Promise.all(pending);
+  expect(kv.puts[0]?.options.metadata).toEqual({ at: expect.any(String) });
+});
+
+test("an oversize raw record keeps raw: true without the url", async () => {
+  setSystemTime(new Date("2026-04-04T04:04:04.004Z"));
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  logSharedLink(envWith(kv.binding), ctx, urlWithMetadataBytes(1_025), true);
+  await Promise.all(pending);
+  expect(kv.puts[0]?.options.metadata).toEqual({ at: "2026-04-04T04:04:04.004Z", raw: true });
+});
