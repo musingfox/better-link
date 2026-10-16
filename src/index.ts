@@ -5,6 +5,7 @@ import { facebookPost, facebookVideo, isFacebookPostUrl, isFacebookVideoUrl } fr
 import { fixServiceUrl } from "./fix-services";
 import { instagramPost, isShortcode, shortcodeOfMediaId, type Post, type PostCache } from "./instagram";
 import { renderOgPage } from "./og";
+import { logSharedLink } from "./shared-link-log";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 const POST_PATH = /^\/(p|reel)\/([^/]+)(?:\/([1-9]\d?))?\/?$/;
@@ -40,7 +41,7 @@ function text(status: number, body: string): Response {
   });
 }
 
-async function convert(requestUrl: URL): Promise<Response> {
+async function convert(requestUrl: URL, env: Env, ctx: ExecutionContext): Promise<Response> {
   const raw = requestUrl.searchParams.get("url");
   if (raw === null || raw === "") return text(400, CONVERT_HINT);
   let target: URL;
@@ -51,7 +52,9 @@ async function convert(requestUrl: URL): Promise<Response> {
   }
   if (!isShareable(target)) return text(400, CONVERT_HINT);
   const cleaned = cleanUrl((await expandShareLink(target)) ?? target);
-  const prefix = requestUrl.searchParams.get("raw") === "1" ? "https://" : `${requestUrl.origin}/`;
+  const rawMode = requestUrl.searchParams.get("raw") === "1";
+  const prefix = rawMode ? "https://" : `${requestUrl.origin}/`;
+  logSharedLink(env, ctx, cleaned, rawMode);
   return text(200, `${prefix}${cleaned.host}${cleaned.pathname}${cleaned.search}`);
 }
 
@@ -198,9 +201,9 @@ export function createWorker(deps: { cache: () => PostCache }): {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response>;
 } {
   return {
-    async fetch(request, _env, _ctx) {
+    async fetch(request, env, ctx) {
       const url = new URL(request.url);
-      if (url.pathname === "/") return convert(url);
+      if (url.pathname === "/") return convert(url, env, ctx);
       if (url.pathname.startsWith("/media/")) return mediaRedirect(url, deps);
       return shareRedirect(url, request.headers.get("User-Agent"), deps);
     },

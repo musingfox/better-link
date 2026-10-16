@@ -1,5 +1,7 @@
 import { afterEach, expect, setSystemTime, spyOn, test } from "bun:test";
+import { createWorker } from "../src/index";
 import { logSharedLink } from "../src/shared-link-log";
+import { fakeCache } from "./support/fake-cache";
 import { fakeKv } from "./support/fake-kv";
 
 const KEY = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z-[0-9a-f-]{36}$/;
@@ -213,4 +215,78 @@ test("an oversize raw record keeps raw: true without the url", async () => {
   logSharedLink(envWith(kv.binding), ctx, urlWithMetadataBytes(1_025), true);
   await Promise.all(pending);
   expect(kv.puts[0]?.options.metadata).toEqual({ at: "2026-04-04T04:04:04.004Z", raw: true });
+});
+
+const YOUTUBE_REQUEST = "https://bl.example/?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc";
+
+function appWithCache() {
+  return createWorker({ cache: () => fakeCache().cache });
+}
+
+function runConversion(env: Env, requestUrl = YOUTUBE_REQUEST) {
+  const { ctx, pending } = fakeCtx();
+  const app = appWithCache();
+  return { response: app.fetch(new Request(requestUrl), env, ctx), pending };
+}
+
+async function snapshot(res: Response) {
+  return { status: res.status, body: await res.text(), type: res.headers.get("content-type") };
+}
+
+test("a successful conversion writes one record and returns the same response", async () => {
+  const withKv = fakeKv();
+  const { response, pending } = runConversion(envWith(withKv.binding));
+  const body = await snapshot(await response);
+  await Promise.all(pending);
+
+  const plain = await snapshot(await runConversion({} as Env).response);
+  expect(body).toEqual(plain);
+  expect(body.body).toBe("https://bl.example/www.youtube.com/watch?v=abc");
+  expect(withKv.puts).toHaveLength(1);
+  expect(withKv.puts[0]?.options.metadata).toEqual({ url: YOUTUBE, at: withKv.puts[0]?.key.slice(0, 24) });
+  expect(withKv.puts[0]?.options.expirationTtl).toBe(7_776_000);
+});
+
+test("raw=1 writes one record marked raw and returns the same response", async () => {
+  const kv = fakeKv();
+  const { response, pending } = runConversion(envWith(kv.binding), `${YOUTUBE_REQUEST}&raw=1`);
+  const body = await snapshot(await response);
+  await Promise.all(pending);
+  expect(body.body).toBe(YOUTUBE);
+  expect(kv.puts).toHaveLength(1);
+  expect(kv.puts[0]?.options.metadata).toHaveProperty("raw", true);
+});
+
+test("without the binding the response is unchanged and nothing is scheduled", async () => {
+  const { response, pending } = runConversion({} as Env);
+  expect((await response).status).toBe(200);
+  expect(pending).toHaveLength(0);
+});
+
+test("a throwing or rejecting put does not change the response", async () => {
+  const plain = await snapshot(await runConversion({} as Env).response);
+  for (const mode of ["throw", "reject"] as const) {
+    const { response, pending } = runConversion(envWith(fakeKv(mode).binding));
+    const body = await snapshot(await response);
+    await Promise.all(pending);
+    expect(body).toEqual(plain);
+  }
+});
+
+test("a put that never settles does not delay the response", async () => {
+  const { response } = runConversion(envWith(fakeKv("hang").binding));
+  const res = await response;
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe("https://bl.example/www.youtube.com/watch?v=abc");
+});
+
+test("the recorded url is the cleaned url the response points to", async () => {
+  const kv = fakeKv();
+  const request = "https://bl.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FBsOGulcndj-%2F%3Figsh%3Dxyz";
+  const { response, pending } = runConversion(envWith(kv.binding), request);
+  const body = await (await response).text();
+  await Promise.all(pending);
+  expect(body).toBe("https://bl.example/www.instagram.com/p/BsOGulcndj-/");
+  expect(kv.puts[0]?.value).toBe("https://www.instagram.com/p/BsOGulcndj-/");
+  expect(kv.puts[0]?.value).not.toContain("igsh");
 });
