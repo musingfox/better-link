@@ -65,7 +65,7 @@ The `url` parameter must be percent-encoded in both modes. The examples assume t
 | `GET /<original host>/<path>` | Crawlers: og preview page or 302 to a fix service. Regular browsers: 302 to the original URL |
 | `GET /www.instagram.com/p/<code>/<n>` | The n-th image of a multi-image post (1-based) |
 | `GET /media/...` | 302 to a freshly signed CDN image or video URL, used by og tags |
-| `GET /log[?q=<text>][&cursor=<cursor>]` | With the shared-link log enabled: logged links, newest first, 30 per page, with Instagram and Facebook media previews. `q` searches the original URLs. `403` unless the request passed Cloudflare Access |
+| `GET /log[?q=<text>][&cursor=<cursor>]` | With the shared-link log enabled: logged links, newest first, 30 per page, with Instagram and Facebook media previews. `q` searches the original URLs and the post authors and text recorded at conversion. `403` unless the request passed Cloudflare Access |
 
 ## Deploy your own
 

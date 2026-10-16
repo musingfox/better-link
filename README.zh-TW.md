@@ -65,7 +65,7 @@ curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Fi
 | `GET /<原網域>/<路徑>` | 爬蟲：og 預覽頁或 302 到修正服務。一般瀏覽器：302 回原網址 |
 | `GET /www.instagram.com/p/<code>/<n>` | 多圖貼文的第 n 張（1 起算） |
 | `GET /media/...` | 302 到當下重新簽章的 CDN 圖片或影片網址，供 og 標籤使用 |
-| `GET /log[?q=<文字>][&cursor=<游標>]` | 啟用分享連結紀錄時：紀錄新的在前，每頁 30 筆，Instagram 和 Facebook 附媒體預覽。`q` 搜尋原網址。請求沒有通過 Cloudflare Access 時回 `403` |
+| `GET /log[?q=<文字>][&cursor=<游標>]` | 啟用分享連結紀錄時：紀錄新的在前，每頁 30 筆，Instagram 和 Facebook 附媒體預覽。`q` 搜尋原網址，以及轉換時記下的貼文作者和內文。請求沒有通過 Cloudflare Access 時回 `403` |
 
 ## 部署自己的版本
 
