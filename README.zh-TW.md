@@ -65,6 +65,7 @@ curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Fi
 | `GET /<原網域>/<路徑>` | 爬蟲：og 預覽頁或 302 到修正服務。一般瀏覽器：302 回原網址 |
 | `GET /www.instagram.com/p/<code>/<n>` | 多圖貼文的第 n 張（1 起算） |
 | `GET /media/...` | 302 到當下重新簽章的 CDN 圖片或影片網址，供 og 標籤使用 |
+| `GET /log[?day=YYYY-MM-DD]` | 啟用分享連結紀錄時：某一個 UTC 日的紀錄，新的在前。請求沒有通過 Cloudflare Access 時回 `403` |
 
 ## 部署自己的版本
 
@@ -75,6 +76,8 @@ curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Fi
 Cloudflare 會把這個 repo 複製到你的 GitHub 或 GitLab 帳號、建置並部署 Worker，並接上 Workers Builds，之後推到那份複本就會自動重新部署。只需要 Cloudflare 帳號，Workers 免費方案就夠，也沒有 binding、環境變數或 secret 要填。Worker 名稱可以在設定頁改。
 
 可選功能：要記錄 `GET /?url=` 產生的每一筆分享連結，在 Workers Builds 的建置變數設定 `LOG_SHARED_LINKS` 為 `1`。設定檔會宣告一個名為 `SHARED_LINKS` 的 KV binding，每筆紀錄 90 天後過期。沒有設定變數時不宣告任何 binding，Worker 的行為和以前相同。要取消時移除變數並重新部署即可移除 binding；命名空間和其中的紀錄會保留。
+
+要查看紀錄，打開 Worker 的 `/log`。在 Cloudflare Access 保護這個路徑之前，頁面一律回 `403`：到 Zero Trust > Access > Applications 新增一個 self-hosted application，網域填 Worker 的主機名稱、路徑填 `/log`，並只允許你自己登入。只保護這個路徑，不要保護整個 Worker；保護整個 Worker 會連分享連結和 `/media/` 一起擋住，聊天軟體就拿不到預覽。
 
 部署完成後網址是 `https://better-link.<你的子網域>.workers.dev`（或你取的名稱），把上面範例中的 `https://link.example` 換成它即可，也可以在 Cloudflare 後台綁自訂網域。
 

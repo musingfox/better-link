@@ -65,6 +65,7 @@ The `url` parameter must be percent-encoded in both modes. The examples assume t
 | `GET /<original host>/<path>` | Crawlers: og preview page or 302 to a fix service. Regular browsers: 302 to the original URL |
 | `GET /www.instagram.com/p/<code>/<n>` | The n-th image of a multi-image post (1-based) |
 | `GET /media/...` | 302 to a freshly signed CDN image or video URL, used by og tags |
+| `GET /log[?day=YYYY-MM-DD]` | With the shared-link log enabled: one UTC day of logged links, newest first. `403` unless the request passed Cloudflare Access |
 
 ## Deploy your own
 
@@ -75,6 +76,8 @@ Click the button to deploy your own copy to Cloudflare:
 Cloudflare copies this repository into your GitHub or GitLab account, builds it and deploys the Worker, and connects Workers Builds so that every push to the copy redeploys it. You only need a Cloudflare account; the Workers free plan is enough, and there are no bindings, variables or secrets to fill in. You can rename the Worker on the setup page.
 
 Optional: to record each share link that `GET /?url=` produces, set the build variable `LOG_SHARED_LINKS` to `1` in Workers Builds. The config then declares a KV binding named `SHARED_LINKS`, and each record expires after 90 days. Without the variable no binding is declared and the Worker behaves as before. Unset the variable and redeploy to remove the binding; the namespace and its records stay.
+
+To read the log, open `/log` on your Worker. The page answers `403` until Cloudflare Access protects it: in Zero Trust > Access > Applications, add a self-hosted application whose domain is your Worker's hostname with the path `/log`, and allow only yourself. Protect only that path, not the whole Worker; protecting the Worker also blocks share links and `/media/`, so chat apps lose their previews.
 
 Once deployed, the Worker is reachable at `https://better-link.<your-subdomain>.workers.dev` (or under the name you picked). Use that as `https://link.example` in the examples above, or attach a custom domain in the Cloudflare dashboard.
 
