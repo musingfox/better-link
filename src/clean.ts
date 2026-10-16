@@ -1,5 +1,5 @@
 export const INSTAGRAM_HOSTS = new Set(["instagram.com", "www.instagram.com"]);
-const YOUTUBE_HOSTS = new Set([
+export const YOUTUBE_HOSTS = new Set([
   "youtube.com",
   "www.youtube.com",
   "m.youtube.com",
@@ -7,7 +7,7 @@ const YOUTUBE_HOSTS = new Set([
   "youtu.be",
 ]);
 
-const X_HOSTS = new Set([
+export const X_HOSTS = new Set([
   "x.com",
   "www.x.com",
   "mobile.x.com",
@@ -17,7 +17,7 @@ const X_HOSTS = new Set([
   "m.twitter.com",
 ]);
 
-const THREADS_HOSTS = new Set(["threads.net", "www.threads.net", "threads.com", "www.threads.com"]);
+export const THREADS_HOSTS = new Set(["threads.net", "www.threads.net", "threads.com", "www.threads.com"]);
 
 const INSTAGRAM_PARAMS = new Set(["img_index"]);
 const X_SHARE_PARAMS = new Set(["s", "t"]);

@@ -15,8 +15,9 @@ better-link is a single Cloudflare Worker with three kinds of request. A convers
 - `src/facebook.ts` fetches `plugins/post.php` and `plugins/video.php` and parses them into a `Post` (`facebookPost`, `facebookVideo`).
 - `src/og.ts` renders a `Post` into og and twitter card HTML (`renderOgPage`).
 - `cloudflare.config.ts` holds the Worker settings that `cf` reads. It declares the `SHARED_LINKS` KV binding only when the build variable `LOG_SHARED_LINKS` is `1`.
-- `src/shared-link-log.ts` (`logSharedLink`) writes one record per successful `GET /?url=` to `env.SHARED_LINKS` through `ctx.waitUntil`. Without the binding it does nothing.
-- `src/shared-link-log-page.ts` (`sharedLinkLogPage`) renders `GET /log`: cursor pages of 30 keys (newest first, since keys start with an inverted timestamp), a URL search bounded to three `list` calls, and previews that point at the same `/media/` URLs as the share link's og page. It answers only when Cloudflare Access set `ctx.access`. Without the binding `/log` falls through to `shareRedirect`.
+- `src/shared-link-log.ts` (`logSharedLink`) writes one record per successful `GET /?url=` to `env.SHARED_LINKS` through `ctx.waitUntil`, after waiting up to 10 seconds for `summarize`. Without the binding it does nothing.
+- `src/summary.ts` (`summarize`) fetches a post's author and text for the log: Instagram and Facebook through their parsers, YouTube and X through oEmbed, Bluesky through its public API, Threads and the fix-service platforms through og tags.
+- `src/shared-link-log-page.ts` (`sharedLinkLogPage`) renders `GET /log`: cursor pages of 30 keys (newest first, since keys start with an inverted timestamp), a search over URLs, authors and text bounded to three `list` calls, and previews that point at the same `/media/` URLs as the share link's og page. It answers only when Cloudflare Access set `ctx.access`. Without the binding `/log` falls through to `shareRedirect`.
 
 ## Invariants
 

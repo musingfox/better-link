@@ -10,7 +10,7 @@ adr: null
 ---
 每個請求的 CPU 時間必須在 10ms 以內，subrequest 不超過 50 個。
 
-等待 `fetch()` 不算 CPU 時間，真正花 CPU 的是解析上游頁面，例如約 300KB 的 Instagram embed 頁。解析只取需要的欄位：Instagram 單圖取 `EmbeddedMediaImage` 的 `src`、`UsernameText`、`Caption`；影片和多圖取頁尾 `contextJSON`（約在 250KB 處，用 `indexOf` 定位後解碼）；Facebook 取 `hd_src`、`sd_src`。不建完整 DOM，也不在 Worker 裡處理圖片或影片。2026-09-28 部署實測，冷抓取加解析約 285KB 的 embed 頁 CPU 為 1–2 ms。2026-09-28 至 29 在正式環境用 `wrangler tail` 量冷抓取，Facebook 貼文最高 9 ms、Instagram 大型多圖最高 8 ms，其他 1–4 ms（樣本數未記錄），餘裕很小。
+等待 `fetch()` 不算 CPU 時間，真正花 CPU 的是解析上游頁面，例如約 300KB 的 Instagram embed 頁。解析只取需要的欄位：Instagram 單圖取 `EmbeddedMediaImage` 的 `src`、`UsernameText`、`Caption`；影片和多圖取頁尾 `contextJSON`（約在 250KB 處，用 `indexOf` 定位後解碼）；Facebook 取 `hd_src`、`sd_src`。不建完整 DOM，也不在 Worker 裡處理圖片或影片。2026-09-28 部署實測，冷抓取加解析約 285KB 的 embed 頁 CPU 為 1–2 ms。2026-09-28 至 29 在正式環境用 `wrangler tail` 量冷抓取，Facebook 貼文最高 9 ms、Instagram 大型多圖最高 8 ms，其他 1–4 ms（樣本數未記錄），餘裕很小。2026-10-16 轉換端點在 `waitUntil` 裡加上貼文摘要後，用 Workers Logs 的 `cpuTimeMs` 量 16 個連結各轉換兩次（共 31 筆有紀錄）：Instagram 和 Facebook 快取未命中時 9–10 ms，命中後 1–6 ms；YouTube、X、Bluesky、Threads、TikTok、Reddit、Pixiv 1–5 ms。同一天查過去 7 天的 293 筆請求，分享連結端點冷抓取 Instagram 最高 12 ms，所有請求的 outcome 都是 `ok`，沒有 `exceededCpu`；可見超過 10 ms 的單一請求不一定被中止，但放寬的條件文件沒寫，不能當作餘裕。
 
 限制來源是 https://developers.cloudflare.com/workers/platform/limits/ 。拼圖和影片代理因此不在範圍內；新功能若需要在 Worker 裡做影像處理或大量文字處理，要先寫 ADR 重新決定。
 

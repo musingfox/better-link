@@ -14,7 +14,7 @@ type SharedLinkList = {
   list(options: ListOptions): Promise<Listed>;
 };
 
-type Logged = { at: string; url: string | null; raw: boolean };
+type Logged = { at: string; url: string | null; raw: boolean; author: string; text: string };
 
 // Swaps a failed preview image for a video (video posts serve an mp4), then for a note.
 const MEDIA_FALLBACK = `document.addEventListener("error", (event) => {
@@ -51,11 +51,13 @@ function text(status: number, body: string): Response {
 }
 
 function logged(key: LoggedKey): Logged {
-  const metadata = (key.metadata ?? {}) as { url?: unknown; at?: unknown; raw?: unknown };
+  const metadata = (key.metadata ?? {}) as { url?: unknown; at?: unknown; raw?: unknown; author?: unknown; text?: unknown };
   return {
     at: typeof metadata.at === "string" ? metadata.at : "",
     url: typeof metadata.url === "string" ? metadata.url : null,
     raw: metadata.raw === true,
+    author: typeof metadata.author === "string" ? metadata.author : "",
+    text: typeof metadata.text === "string" ? metadata.text : "",
   };
 }
 
@@ -88,7 +90,9 @@ function row(entry: Logged, origin: string): string {
   const media = mediaUrl(entry.url, origin);
   const preview =
     media === null ? "No preview" : `<img data-media="${escapeHtml(media)}" src="${escapeHtml(media)}" loading="lazy" alt="">`;
-  return `<tr><td>${time}</td><td class="preview">${preview}</td><td><a href="${url}">${url}</a></td><td><a href="${share}">${share}</a>${badge}</td></tr>`;
+  const author = entry.author === "" ? "" : `<strong>${escapeHtml(entry.author)}</strong>`;
+  const text = entry.text === "" ? "" : `<p class="text">${escapeHtml(entry.text)}</p>`;
+  return `<tr><td>${time}</td><td class="preview">${preview}</td><td>${author}${text}<a href="${url}">${url}</a></td><td><a href="${share}">${share}</a>${badge}</td></tr>`;
 }
 
 function render(entries: Logged[], query: string, next: string | null, origin: string): string {
@@ -116,6 +120,7 @@ table { border-collapse: collapse; width: 100%; }
 td, th { border-bottom: 1px solid #8884; padding: 6px 8px; text-align: left; vertical-align: top; }
 td:first-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
 td a { word-break: break-all; }
+.text { margin: 2px 0 4px; white-space: pre-line; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .preview { width: 96px; color: #888; font-size: 12px; }
 .preview img, .preview video { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 4px; }
 nav { display: flex; gap: 16px; margin-top: 16px; }
@@ -123,10 +128,10 @@ nav { display: flex; gap: 16px; margin-top: 16px; }
 </head>
 <body>
 <h1>Shared links</h1>
-<form action="/log"><input type="search" name="q" value="${q}" placeholder="Search original URLs"><button>Search</button></form>
+<form action="/log"><input type="search" name="q" value="${q}" placeholder="Search URLs, authors and text"><button>Search</button></form>
 ${empty}
 <table>
-<thead><tr><th>Time (UTC)</th><th>Preview</th><th>Original URL</th><th>Share link</th></tr></thead>
+<thead><tr><th>Time (UTC)</th><th>Preview</th><th>Post</th><th>Share link</th></tr></thead>
 <tbody>
 ${rows}
 </tbody>
@@ -156,7 +161,7 @@ async function search(
     const listed = await store.list(next === undefined ? { limit: SEARCH_BATCH } : { limit: SEARCH_BATCH, cursor: next });
     for (const key of listed.keys) {
       const entry = logged(key);
-      if (entry.url?.toLowerCase().includes(needle)) entries.push(entry);
+      if ([entry.url ?? "", entry.author, entry.text].some((field) => field.toLowerCase().includes(needle))) entries.push(entry);
     }
     if (listed.list_complete || listed.cursor === undefined) return { entries, next: null };
     next = listed.cursor;
