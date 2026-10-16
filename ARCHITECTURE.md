@@ -14,7 +14,8 @@ better-link is a single Cloudflare Worker with three kinds of request. A convers
 - `src/instagram.ts` fetches the `/embed/captioned/` page and parses it into a `Post` (`instagramPost`, `parseEmbed`). The `Post` and `PostCache` types live here.
 - `src/facebook.ts` fetches `plugins/post.php` and `plugins/video.php` and parses them into a `Post` (`facebookPost`, `facebookVideo`).
 - `src/og.ts` renders a `Post` into og and twitter card HTML (`renderOgPage`).
-- `cloudflare.config.ts` holds the Worker settings that `cf` reads.
+- `cloudflare.config.ts` holds the Worker settings that `cf` reads. It declares the `SHARED_LINKS` KV binding only when the build variable `LOG_SHARED_LINKS` is `1`.
+- `src/shared-link-log.ts` (`logSharedLink`) writes one record per successful `GET /?url=` to `env.SHARED_LINKS` through `ctx.waitUntil`. Without the binding it does nothing.
 
 ## Invariants
 
@@ -23,4 +24,4 @@ The rules a change must not break are in `docs/spec/`. Each spec's `scope` names
 ## Cross-cutting concerns
 
 - Caching: `instagram.ts` and `facebook.ts` store parsed posts with the Cache API through `PostCache`. `createWorker({ cache })` takes the cache as a dependency.
-- Testing: tests pass a fake cache from `test/support/fake-cache.ts` and replace `fetch` with `spyOn(globalThis, "fetch")`. Upstream pages are saved under `test/fixtures/`, and every parsing test runs against them without the network.
+- Testing: tests pass a fake cache from `test/support/fake-cache.ts` and a fake KV binding from `test/support/fake-kv.ts`, and replace `fetch` with `spyOn(globalThis, "fetch")`. Upstream pages are saved under `test/fixtures/`, and every parsing test runs against them without the network.

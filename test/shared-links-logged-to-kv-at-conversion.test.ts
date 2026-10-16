@@ -337,3 +337,52 @@ test("failed conversions never touch kv and keep their 400 response", async () =
   }
   expect(kv.puts).toHaveLength(0);
 });
+
+const CONFIG_FILE = "../cloudflare.config.ts";
+let variant = 0;
+
+async function configWithBuildVar(value: string | undefined) {
+  const previous = process.env.LOG_SHARED_LINKS;
+  try {
+    if (value === undefined) delete process.env.LOG_SHARED_LINKS;
+    else process.env.LOG_SHARED_LINKS = value;
+    variant += 1;
+    const module = (await import(`${CONFIG_FILE}?variant=${variant}`)) as { default: { worker: { env?: unknown } } };
+    return module.default;
+  } finally {
+    if (previous === undefined) delete process.env.LOG_SHARED_LINKS;
+    else process.env.LOG_SHARED_LINKS = previous;
+  }
+}
+
+test("the default config declares no kv binding", async () => {
+  const config = await configWithBuildVar(undefined);
+  expect(JSON.stringify(config)).not.toContain('"type":"kv"');
+  expect(config.worker.env).toBeUndefined();
+});
+
+test("LOG_SHARED_LINKS=1 declares the SHARED_LINKS kv binding", async () => {
+  const config = await configWithBuildVar("1");
+  expect(JSON.stringify(config.worker.env)).toBe('{"SHARED_LINKS":{"type":"kv"}}');
+});
+
+test("any other build value leaves the config without an env", async () => {
+  for (const value of ["true", "0", "", "11"]) {
+    const config = await configWithBuildVar(value);
+    expect(config.worker.env).toBeUndefined();
+  }
+});
+
+test("the test restores LOG_SHARED_LINKS to its value before the test", async () => {
+  const before = process.env.LOG_SHARED_LINKS;
+  await configWithBuildVar("1");
+  expect(process.env.LOG_SHARED_LINKS).toBe(before);
+});
+
+test("both READMEs document the opt-in variable and binding", async () => {
+  for (const name of ["README.md", "README.zh-TW.md"]) {
+    const text = await Bun.file(new URL(`../${name}`, import.meta.url)).text();
+    expect(text).toContain("LOG_SHARED_LINKS");
+    expect(text).toContain("SHARED_LINKS");
+  }
+});

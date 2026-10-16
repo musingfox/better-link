@@ -74,6 +74,8 @@ Click the button to deploy your own copy to Cloudflare:
 
 Cloudflare copies this repository into your GitHub or GitLab account, builds it and deploys the Worker, and connects Workers Builds so that every push to the copy redeploys it. You only need a Cloudflare account; the Workers free plan is enough, and there are no bindings, variables or secrets to fill in. You can rename the Worker on the setup page.
 
+Optional: to record each share link that `GET /?url=` produces, set the build variable `LOG_SHARED_LINKS` to `1` in Workers Builds. The config then declares a KV binding named `SHARED_LINKS`, and each record expires after 90 days. Without the variable no binding is declared and the Worker behaves as before. Unset the variable and redeploy to remove the binding; the namespace and its records stay.
+
 Once deployed, the Worker is reachable at `https://better-link.<your-subdomain>.workers.dev` (or under the name you picked). Use that as `https://link.example` in the examples above, or attach a custom domain in the Cloudflare dashboard.
 
 To deploy manually instead:
@@ -83,6 +85,8 @@ bun install
 npx cf auth login   # once; cf does not reuse a Wrangler login
 bun run deploy      # cf deploy
 ```
+
+If you use the shared-link log, run `LOG_SHARED_LINKS=1 bun run deploy` instead. A manual deploy without the variable removes the binding.
 
 ## Development
 
@@ -95,6 +99,6 @@ bun run check    # typecheck + unit tests
 bun run smoke    # end-to-end tests against real Instagram / Facebook, needs network
 ```
 
-Configuration lives in `cloudflare.config.ts`. The project only uses features of the Workers free plan and needs no bindings.
+Configuration lives in `cloudflare.config.ts`. The project only uses features of the Workers free plan and needs no bindings by default; the optional shared-link log above is the only binding the config can declare.
 
 Design constraints are written in [`docs/spec/`](docs/spec/) (in Traditional Chinese), e.g. the 10ms CPU limit per request, falling back to the original URL on failure, and never putting expiring CDN URLs directly in og tags. Read the relevant specs before changing code. Instructions for AI agents are in [`CLAUDE.md`](CLAUDE.md) (`AGENTS.md` is a symlink to it).
