@@ -1,4 +1,4 @@
-export const SHARED_LINK_TTL_SECONDS = 7_776_000;
+const SHARED_LINK_TTL_SECONDS = 7_776_000;
 const METADATA_LIMIT_BYTES = 1_024;
 
 type SharedLinkStore = {
@@ -6,17 +6,16 @@ type SharedLinkStore = {
 };
 
 function metadataFor(url: string, at: string, raw: boolean): object {
-  const full = raw ? { url, at, raw: true } : { url, at };
+  const base = raw ? { at, raw: true } : { at };
+  const full = { url, ...base };
   const size = new TextEncoder().encode(JSON.stringify(full)).byteLength;
-  if (size <= METADATA_LIMIT_BYTES) return full;
-  return raw ? { at, raw: true } : { at };
+  return size <= METADATA_LIMIT_BYTES ? full : base;
 }
 
-export function logSharedLink(env: Env, ctx: ExecutionContext, cleaned: URL, raw: boolean): void {
+export function logSharedLink(env: Env, ctx: ExecutionContext, url: string, raw: boolean): void {
   const store = (env as { SHARED_LINKS?: SharedLinkStore }).SHARED_LINKS;
   if (store === undefined) return;
   const at = new Date().toISOString();
-  const url = `https://${cleaned.host}${cleaned.pathname}${cleaned.search}`;
   const metadata = metadataFor(url, at, raw);
   const write = async () => {
     try {

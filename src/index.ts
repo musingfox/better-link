@@ -54,8 +54,9 @@ async function convert(requestUrl: URL, env: Env, ctx: ExecutionContext): Promis
   const cleaned = cleanUrl((await expandShareLink(target)) ?? target);
   const rawMode = requestUrl.searchParams.get("raw") === "1";
   const prefix = rawMode ? "https://" : `${requestUrl.origin}/`;
-  logSharedLink(env, ctx, cleaned, rawMode);
-  return text(200, `${prefix}${cleaned.host}${cleaned.pathname}${cleaned.search}`);
+  const link = `${cleaned.host}${cleaned.pathname}${cleaned.search}`;
+  logSharedLink(env, ctx, `https://${link}`, rawMode);
+  return text(200, `${prefix}${link}`);
 }
 
 async function loadPost(
