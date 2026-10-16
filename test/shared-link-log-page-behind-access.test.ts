@@ -104,6 +104,27 @@ test("search matches the original URL case-insensitively", async () => {
   expect(body).not.toContain("cursor=");
 });
 
+test("search also matches the author and text", async () => {
+  const keys = [
+    record("2026-10-16T01:00:00.000Z", { url: "https://x.com/a/status/1", author: "Jack", text: "first" }),
+    record("2026-10-16T02:00:00.000Z", { url: "https://x.com/b/status/2", author: "Other", text: "Twttr setup" }),
+    record("2026-10-16T03:00:00.000Z", { url: "https://x.com/c/status/3", author: "Miss", text: "nothing" }),
+  ];
+  const byAuthor = await page("/log?q=jack", { keys });
+  expect(byAuthor.body).toContain("status/1");
+  expect(byAuthor.body).not.toContain("status/2");
+  const byText = await page("/log?q=TWTTR", { keys });
+  expect(byText.body).toContain("status/2");
+  expect(byText.body).not.toContain("status/3");
+});
+
+test("the author and text are shown escaped", async () => {
+  const keys = [record("2026-10-16T01:00:00.000Z", { url: "https://x.com/a/status/1", author: "<i>A</i>", text: "<b>T</b>" })];
+  const { body } = await page("/log", { keys });
+  expect(body).toContain("<strong>&lt;i&gt;A&lt;/i&gt;</strong>");
+  expect(body).toContain("&lt;b&gt;T&lt;/b&gt;");
+});
+
 test("search stops after three lists and offers to continue with q", async () => {
   const { body, lists } = await page("/log?q=needle", { keys: records(3_500, (i) => `https://example.com/${i}`) });
   expect(lists).toEqual([{ limit: 1_000 }, { limit: 1_000, cursor: "1000" }, { limit: 1_000, cursor: "2000" }]);
