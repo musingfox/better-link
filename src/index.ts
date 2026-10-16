@@ -7,6 +7,7 @@ import { instagramPost, instagramShortcode, isShortcode, type Post, type PostCac
 import { renderOgPage } from "./og";
 import { logSharedLink } from "./shared-link-log";
 import { hasSharedLinkLog, sharedLinkLogPage } from "./shared-link-log-page";
+import { summarize } from "./summary";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
 const ITEM_SUFFIX = /^\/(p|reel)\/([^/]+)\/([1-9]\d?)\/?$/;
@@ -28,7 +29,12 @@ function text(status: number, body: string): Response {
   });
 }
 
-async function convert(requestUrl: URL, env: Env, ctx: ExecutionContext): Promise<Response> {
+async function convert(
+  requestUrl: URL,
+  env: Env,
+  ctx: ExecutionContext,
+  deps: { cache: () => PostCache },
+): Promise<Response> {
   const raw = requestUrl.searchParams.get("url");
   if (raw === null || raw === "") return text(400, CONVERT_HINT);
   let target: URL;
@@ -42,7 +48,9 @@ async function convert(requestUrl: URL, env: Env, ctx: ExecutionContext): Promis
   const rawMode = requestUrl.searchParams.get("raw") === "1";
   const prefix = rawMode ? "https://" : `${requestUrl.origin}/`;
   const link = `${cleaned.host}${cleaned.pathname}${cleaned.search}`;
-  logSharedLink(env, ctx, `https://${link}`, rawMode);
+  logSharedLink(env, ctx, `https://${link}`, rawMode, () =>
+    summarize(new URL(`https://${link}`), { origin: requestUrl.origin, cache: deps.cache() }),
+  );
   return text(200, `${prefix}${link}`);
 }
 
@@ -191,7 +199,7 @@ export function createWorker(deps: { cache: () => PostCache }): {
   return {
     async fetch(request, env, ctx) {
       const url = new URL(request.url);
-      if (url.pathname === "/") return convert(url, env, ctx);
+      if (url.pathname === "/") return convert(url, env, ctx, deps);
       if (url.pathname.startsWith("/media/")) return mediaRedirect(url, deps);
       if (url.pathname === "/log" && hasSharedLinkLog(env)) return sharedLinkLogPage(url, env, ctx);
       return shareRedirect(url, request.headers.get("User-Agent"), deps);

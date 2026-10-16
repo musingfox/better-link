@@ -1,4 +1,4 @@
-import { afterEach, expect, setSystemTime, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, expect, jest, setSystemTime, spyOn, test } from "bun:test";
 import { createWorker } from "../src/index";
 import { logSharedLink } from "../src/shared-link-log";
 import { fakeCache } from "./support/fake-cache";
@@ -11,7 +11,17 @@ function atOf(key: string | undefined): string {
 }
 const YOUTUBE = "https://www.youtube.com/watch?v=abc";
 
-afterEach(() => setSystemTime());
+// Conversions now summarize the post upstream; no test may reach the network.
+let fetchSpy: ReturnType<typeof spyOn> | undefined;
+beforeEach(() => {
+  fetchSpy = spyOn(globalThis, "fetch").mockImplementation((() =>
+    Promise.resolve(new Response("", { status: 404 }))) as unknown as typeof fetch);
+});
+
+afterEach(() => {
+  setSystemTime();
+  fetchSpy?.mockRestore();
+});
 
 function fakeCtx() {
   const pending: Promise<unknown>[] = [];
@@ -90,9 +100,72 @@ test("the collected promise is the write itself", async () => {
   const kv = fakeKv();
   const { ctx, pending } = fakeCtx();
   logSharedLink(envWith(kv.binding), ctx, YOUTUBE, false);
-  expect(kv.puts).toHaveLength(1);
+  expect(kv.puts).toHaveLength(0);
   await Promise.all(pending);
   expect(kv.puts).toHaveLength(1);
+});
+
+test("the post's author and text are written into the metadata", async () => {
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  logSharedLink(envWith(kv.binding), ctx, YOUTUBE, false, () => Promise.resolve({ author: "Rick", text: "Never" }));
+  await Promise.all(pending);
+  const [put] = kv.puts;
+  expect(put?.options.metadata).toEqual({ url: YOUTUBE, at: atOf(put?.key), author: "Rick", text: "Never" });
+});
+
+test("a long text is cut by bytes so the metadata stays within 1,024 bytes", async () => {
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  const text = "字".repeat(1_000);
+  logSharedLink(envWith(kv.binding), ctx, YOUTUBE, false, () => Promise.resolve({ author: "作者", text }));
+  await Promise.all(pending);
+  const metadata = kv.puts[0]?.options.metadata ?? {};
+  const size = new TextEncoder().encode(JSON.stringify(metadata)).byteLength;
+  expect(size).toBeLessThanOrEqual(1_024);
+  expect(size).toBeGreaterThan(1_024 - 3);
+  expect(metadata.url).toBe(YOUTUBE);
+  expect(metadata.author).toBe("作者");
+  expect(text.startsWith(String(metadata.text))).toBe(true);
+});
+
+test("a record whose URL does not fit keeps no summary", async () => {
+  const kv = fakeKv();
+  const { ctx, pending } = fakeCtx();
+  const long = `https://www.youtube.com/watch?v=${"a".repeat(1_100)}`;
+  logSharedLink(envWith(kv.binding), ctx, long, false, () => Promise.resolve({ author: "A", text: "T" }));
+  await Promise.all(pending);
+  expect(kv.puts[0]?.options.metadata).toEqual({ at: atOf(kv.puts[0]?.key) });
+});
+
+test("a failing summary still writes the record without it", async () => {
+  const throwing = (): Promise<null> => {
+    throw new Error("sync");
+  };
+  for (const summarize of [() => Promise.reject(new Error("upstream")), () => Promise.resolve(null), throwing]) {
+    const kv = fakeKv();
+    const { ctx, pending } = fakeCtx();
+    logSharedLink(envWith(kv.binding), ctx, YOUTUBE, false, summarize);
+    await Promise.all(pending);
+    expect(kv.puts[0]?.options.metadata).toEqual({ url: YOUTUBE, at: atOf(kv.puts[0]?.key) });
+  }
+});
+
+test("a summary that never settles is abandoned after 10 seconds", async () => {
+  jest.useFakeTimers();
+  try {
+    const kv = fakeKv();
+    const { ctx, pending } = fakeCtx();
+    logSharedLink(envWith(kv.binding), ctx, YOUTUBE, false, () => new Promise(() => {}));
+    jest.advanceTimersByTime(9_999);
+    await Promise.resolve();
+    expect(kv.puts).toHaveLength(0);
+    jest.advanceTimersByTime(1);
+    await Promise.all(pending);
+    expect(kv.puts[0]?.options.metadata).toEqual({ url: YOUTUBE, at: atOf(kv.puts[0]?.key) });
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test("without the binding nothing is scheduled", () => {
@@ -228,6 +301,20 @@ test("a successful conversion writes one record and returns the same response", 
   expect(withKv.puts[0]?.options.expirationTtl).toBe(7_776_000);
 });
 
+test("a conversion summarizes the post into the record", async () => {
+  const html = await Bun.file(new URL("./fixtures/instagram/embed-BsOGulcndj-.html", import.meta.url)).text();
+  fetchSpy?.mockImplementation((() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch);
+  const kv = fakeKv();
+  const { response, pending } = runConversion(
+    envWith(kv.binding),
+    "https://bl.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FBsOGulcndj-%2F",
+  );
+  expect((await response).status).toBe(200);
+  await Promise.all(pending);
+  expect(kv.puts[0]?.options.metadata.author).toBe("world_record_egg");
+  expect(String(kv.puts[0]?.options.metadata.text)).toStartWith("Let’s set a world record together");
+});
+
 test("raw=1 writes one record marked raw and returns the same response", async () => {
   const kv = fakeKv();
   const { response, pending } = runConversion(envWith(kv.binding), `${YOUTUBE_REQUEST}&raw=1`);
@@ -296,16 +383,10 @@ test("an http input is recorded in https form", async () => {
 const BROWSER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36";
 const DISCORD_UA = "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)";
 
-function stubFetch(status: number) {
-  return spyOn(globalThis, "fetch").mockImplementation((() =>
-    Promise.resolve(new Response("", { status }))) as unknown as typeof fetch);
-}
-
 test("share redirects and media never touch kv", async () => {
   const kv = fakeKv();
   const env = envWith(kv.binding);
-  const spy = stubFetch(404);
-  try {
+  {
     const cases: [string, string | undefined][] = [
       ["https://bl.example/www.instagram.com/p/BsOGulcndj-/", BROWSER],
       ["https://bl.example/www.instagram.com/p/BsOGulcndj-/", DISCORD_UA],
@@ -322,8 +403,6 @@ test("share redirects and media never touch kv", async () => {
       expect(pending).toHaveLength(0);
     }
     expect(kv.puts).toHaveLength(0);
-  } finally {
-    spy.mockRestore();
   }
 });
 
