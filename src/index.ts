@@ -3,27 +3,13 @@ import { isCrawler } from "./crawler";
 import { FACEBOOK_HOSTS, expandShareLink, isShareable } from "./expand";
 import { facebookPost, facebookVideo, isFacebookPostUrl, isFacebookVideoUrl } from "./facebook";
 import { fixServiceUrl } from "./fix-services";
-import { instagramPost, isShortcode, shortcodeOfMediaId, type Post, type PostCache } from "./instagram";
+import { instagramPost, instagramShortcode, isShortcode, type Post, type PostCache } from "./instagram";
 import { renderOgPage } from "./og";
 import { logSharedLink } from "./shared-link-log";
 import { hasSharedLinkLog, sharedLinkLogPage } from "./shared-link-log-page";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
-const POST_PATH = /^\/(p|reel)\/([^/]+)(?:\/([1-9]\d?))?\/?$/;
 const ITEM_SUFFIX = /^\/(p|reel)\/([^/]+)\/([1-9]\d?)\/?$/;
-const STORY_PATH = /^\/stories\/([^/]+)\/([^/]+)\/?$/;
-
-function instagramShortcode(pathname: string): { shortcode: string; index: number } | null {
-  const post = POST_PATH.exec(pathname);
-  if (post?.[2] !== undefined && isShortcode(post[2])) {
-    return { shortcode: post[2], index: post[3] === undefined ? 1 : Number(post[3]) };
-  }
-  const story = STORY_PATH.exec(pathname);
-  // A highlight id names a collection, not a media, so it has no embed page.
-  if (story?.[1] === undefined || story[1] === "highlights" || story[2] === undefined) return null;
-  const shortcode = shortcodeOfMediaId(story[2]);
-  return shortcode === null ? null : { shortcode, index: 1 };
-}
 
 function landingUrl(cleaned: URL): URL {
   if (!INSTAGRAM_HOSTS.has(cleaned.hostname)) return cleaned;
