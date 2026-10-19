@@ -39,6 +39,7 @@ const BLOCKED_NAMES = new Set([
   "sender_device",
   "refsrc",
   "_rdr",
+  "tg_rhash",
 ]);
 
 function segmentName(segment: string): string {

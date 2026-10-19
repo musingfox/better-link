@@ -23,6 +23,7 @@ type OgPageMeta = {
   title: string;
   description: string;
   url: string;
+  article?: { heading: string; media: PageMedia[] };
 } & (
   | { image: string }
   | { video: { url: string; width: number; height: number } }
@@ -33,6 +34,29 @@ function pageMedia(meta: OgPageMeta): PageMedia {
   if ("media" in meta) return meta.media;
   if ("video" in meta) return { kind: "video", ...meta.video };
   return { kind: "image", url: meta.image };
+}
+
+function mediaTag(media: PageMedia): string {
+  const src = escapeHtml(media.url);
+  if (media.kind === "image") return `<img src="${src}">`;
+  return `<video src="${src}" width="${media.width}" height="${media.height}"></video>`;
+}
+
+// Telegram Instant View builds its page from this body; the template is in
+// docs/telegram-instant-view.iv and turns div.carousel into a slideshow.
+function renderArticle(article: { heading: string; media: PageMedia[] }, caption: string): string {
+  const paragraphs = caption
+    .replace(/\r\n?/g, "\n")
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph !== "")
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`);
+  const tags = article.media.map(mediaTag);
+  const media =
+    tags.length === 1 ? [`<figure>${tags[0]}</figure>`] : ['<div class="carousel">', ...tags, "</div>"];
+  return ["<article>", `<h1>${escapeHtml(article.heading)}</h1>`, ...paragraphs, ...media, "</article>", ""].join(
+    "\n",
+  );
 }
 
 export function renderOgPage(meta: OgPageMeta): string {
@@ -70,7 +94,7 @@ ${ogMedia}
 ${twitterMedia}
 </head>
 <body>
-<a href="${url}">${url}</a>
+${meta.article ? renderArticle(meta.article, meta.description) : ""}<a href="${url}">${url}</a>
 </body>
 </html>
 `;

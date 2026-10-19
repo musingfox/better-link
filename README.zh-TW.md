@@ -57,11 +57,26 @@ curl 'https://link.example/?url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F%3Fi
 
 兩種模式的 `url` 參數都要 percent-encode。範例以部署網域 `https://link.example` 為例。
 
+### Telegram Instant View
+
+Instagram 和 Facebook 貼文的 og 頁在內文裡也放了整篇貼文：完整說明文字和每一張圖片、每一支影片。Telegram 的 Instant View 可以在 Telegram 裡直接顯示這一頁，多圖貼文會變成輪播。Telegram 只對一般連結套用它審核過的模板，所以 better-link 改用一種指定你自己模板的連結：
+
+1. 用桌機瀏覽器打開 [My Templates](https://instantview.telegram.org/my)，輸入你的 Worker 產生的分享連結，把 [`docs/telegram-instant-view.iv`](docs/telegram-instant-view.iv) 貼成規則。
+2. 按 **View in Telegram**，從它給的 `t.me/iv` 連結複製 `rhash` 的值。
+3. 轉換時加上 `&iv=<rhash>`。
+
+```sh
+curl 'https://link.example/?iv=<rhash>&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F'
+# https://t.me/iv?url=https%3A%2F%2Flink.example%2Fwww.instagram.com%2Fp%2FABC%2F&rhash=<rhash>
+```
+
+只有 Instagram 和 Facebook 的連結會被包起來；其他連結照樣回傳一般分享連結，因為它們的預覽來自修正服務，你的模板套不上去。`t.me/iv` 連結只適合在 Telegram 裡用：其他聊天軟體只會顯示一個空白的 Telegram 預覽。
+
 ## 端點
 
 | 請求 | 回應 |
 | --- | --- |
-| `GET /?url=<網址>[&raw=1]` | `200 text/plain`，內容是連結；網址無效時回 `400` |
+| `GET /?url=<網址>[&raw=1][&iv=<rhash>]` | `200 text/plain`，內容是連結；網址或 `iv` 無效時回 `400` |
 | `GET /<原網域>/<路徑>` | 爬蟲：og 預覽頁或 302 到修正服務。一般瀏覽器：302 回原網址 |
 | `GET /www.instagram.com/p/<code>/<n>` | 多圖貼文的第 n 張（1 起算） |
 | `GET /media/...` | 302 到當下重新簽章的 CDN 圖片或影片網址，供 og 標籤使用 |

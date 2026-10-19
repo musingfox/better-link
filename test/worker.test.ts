@@ -369,6 +369,50 @@ test("a mobile facebook share link converts to the cleaned mobile canonical url"
   }
 });
 
+test("iv wraps an instagram share link in a telegram instant view link", async () => {
+  const res = await call(
+    "https://bl.example/?iv=9d9dcd0763add6&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F%3Figsh%3Dx",
+  );
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe(
+    `https://t.me/iv?url=${encodeURIComponent("https://bl.example/www.instagram.com/p/DOBXTYNklfi/")}&rhash=9d9dcd0763add6`,
+  );
+});
+
+test("iv wraps a facebook video share link in a telegram instant view link", async () => {
+  const res = await call(
+    `https://bl.example/?iv=9d9dcd0763add6&url=${encodeURIComponent("https://www.facebook.com/reel/1016339268064528?mibextid=x")}`,
+  );
+  expect(await res.text()).toBe(
+    `https://t.me/iv?url=${encodeURIComponent("https://bl.example/www.facebook.com/reel/1016339268064528")}&rhash=9d9dcd0763add6`,
+  );
+});
+
+test("iv leaves a share link that the worker does not render unwrapped", async () => {
+  const res = await call("https://bl.example/?iv=9d9dcd0763add6&url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20%3Fs%3D20");
+  expect(await res.text()).toBe("https://bl.example/x.com/jack/status/20");
+});
+
+test("iv is ignored with raw=1", async () => {
+  const res = await call(
+    "https://bl.example/?raw=1&iv=9d9dcd0763add6&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F",
+  );
+  expect(await res.text()).toBe("https://www.instagram.com/p/DOBXTYNklfi/");
+});
+
+test("an invalid iv is ignored with raw=1 like a valid one", async () => {
+  const res = await call("https://bl.example/?raw=1&iv=zz&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F");
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe("https://www.instagram.com/p/DOBXTYNklfi/");
+});
+
+test("an iv that is not a hex rhash is rejected", async () => {
+  const res = await call(
+    "https://bl.example/?iv=9d9d%26x%3D1&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F",
+  );
+  expect(res.status).toBe(400);
+});
+
 test("raw=1 returns the cleaned original instead of a share link", async () => {
   const res = await call(
     "https://bl.example/?raw=1&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ%26t%3D42%26si%3Dabc",
@@ -1046,6 +1090,28 @@ test("a crawler preview of carousel item 2 points at that item", async () => {
     expect(body).toContain('<meta property="og:url" content="https://www.instagram.com/p/DOBXTYNklfi/">');
     expect(body).not.toContain("http-equiv");
     expect(body).toContain('<a href="https://www.instagram.com/p/DOBXTYNklfi/">');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a crawler preview of a carousel item carries every item in its article", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const count = parseEmbed(html)?.media.length ?? 0;
+  expect(count).toBeGreaterThan(1);
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2", {
+      "User-Agent": "TelegramBot (like TwitterBot)",
+    });
+    const body = await res.text();
+    expect(body).toContain('<div class="carousel">');
+    for (let n = 1; n <= count; n++) {
+      expect(body).toContain(`src="https://bl.example/media/DOBXTYNklfi/${n}"`);
+    }
+    expect(body).not.toContain(`/media/DOBXTYNklfi/${count + 1}"`);
+    expect(body).not.toContain("cdninstagram");
   } finally {
     spy.mockRestore();
   }
@@ -1732,6 +1798,39 @@ test("a discord crawler receives a facebook og page", async () => {
     );
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("the instant view bot's tg_rhash does not reach the facebook og page or upstream", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, `${MANNY_SHARE}&tg_rhash=9d9dcd0763add6`, {
+      "User-Agent": "TelegramBot (like TwitterBot)",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain(`<meta property="og:url" content="${MANNY}">`);
+    expect(body).toContain(`<meta property="og:image" content="${MANNY_MEDIA}">`);
+    expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook og page carries its post in an article", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const body = await (await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD })).text();
+    expect(body).toContain("<h1>曼報 Manny&#39;s Newsletter</h1>");
+    expect(body).toContain("<p>2020 年，我開始利用下班時間寫免費電子報《曼報 Manny’s Newsletter》");
+    expect(body).toContain(`<figure><img src="${MANNY_MEDIA}"></figure>`);
+    expect(body).not.toContain("fbcdn");
   } finally {
     spy.mockRestore();
   }

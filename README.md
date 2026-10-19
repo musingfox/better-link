@@ -57,11 +57,26 @@ You can also skip the API and replace `https://` in the original URL with `https
 
 The `url` parameter must be percent-encoded in both modes. The examples assume the Worker is deployed at `https://link.example`.
 
+### Telegram Instant View
+
+The og page of an Instagram or Facebook post also carries the whole post in its body: the full caption and every image and video. Telegram's Instant View can show that page inside Telegram, with multi-image posts as a slideshow. Telegram applies only templates it has approved to ordinary links, so better-link uses a link that names your own template instead:
+
+1. Open [My Templates](https://instantview.telegram.org/my) on a desktop browser, enter a share link from your Worker, and paste [`docs/telegram-instant-view.iv`](docs/telegram-instant-view.iv) as the rules.
+2. Press **View in Telegram** and copy the `rhash` value from the `t.me/iv` link it gives you.
+3. Add `&iv=<rhash>` when converting.
+
+```sh
+curl 'https://link.example/?iv=<rhash>&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FABC%2F'
+# https://t.me/iv?url=https%3A%2F%2Flink.example%2Fwww.instagram.com%2Fp%2FABC%2F&rhash=<rhash>
+```
+
+Only Instagram and Facebook links are wrapped; other links come back as the plain share link, because their previews come from fix services that your template does not cover. A `t.me/iv` link is for Telegram only: other chat apps show it with an empty Telegram preview.
+
 ## Endpoints
 
 | Request | Response |
 | --- | --- |
-| `GET /?url=<url>[&raw=1]` | `200 text/plain` with the link; `400` for an invalid URL |
+| `GET /?url=<url>[&raw=1][&iv=<rhash>]` | `200 text/plain` with the link; `400` for an invalid URL or `iv` |
 | `GET /<original host>/<path>` | Crawlers: og preview page or 302 to a fix service. Regular browsers: 302 to the original URL |
 | `GET /www.instagram.com/p/<code>/<n>` | The n-th image of a multi-image post (1-based) |
 | `GET /media/...` | 302 to a freshly signed CDN image or video URL, used by og tags |
