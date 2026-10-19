@@ -1051,6 +1051,28 @@ test("a crawler preview of carousel item 2 points at that item", async () => {
   }
 });
 
+test("a crawler preview of a carousel item carries every item in its article", async () => {
+  const html = await instagramFixture("embed-DOBXTYNklfi.html");
+  const count = parseEmbed(html)?.media.length ?? 0;
+  expect(count).toBeGreaterThan(1);
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, "https://bl.example/www.instagram.com/p/DOBXTYNklfi/2", {
+      "User-Agent": "TelegramBot (like TwitterBot)",
+    });
+    const body = await res.text();
+    expect(body).toContain('<div class="carousel">');
+    for (let n = 1; n <= count; n++) {
+      expect(body).toContain(`src="https://bl.example/media/DOBXTYNklfi/${n}"`);
+    }
+    expect(body).not.toContain(`/media/DOBXTYNklfi/${count + 1}"`);
+    expect(body).not.toContain("cdninstagram");
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 test("a crawler preview without an item number uses the first item", async () => {
   const html = await instagramFixture("embed-DOBXTYNklfi.html");
   const app = createWorker({ cache: () => fakeCache().cache });
@@ -1750,6 +1772,21 @@ test("the instant view bot's tg_rhash does not reach the facebook og page or ups
     expect(body).toContain(`<meta property="og:url" content="${MANNY}">`);
     expect(body).toContain(`<meta property="og:image" content="${MANNY_MEDIA}">`);
     expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+test("a facebook og page carries its post in an article", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const body = await (await callWorker(app, MANNY_SHARE, { "User-Agent": DISCORD })).text();
+    expect(body).toContain("<h1>曼報 Manny&#39;s Newsletter</h1>");
+    expect(body).toContain("<p>2020 年，我開始利用下班時間寫免費電子報《曼報 Manny’s Newsletter》");
+    expect(body).toContain(`<figure><img src="${MANNY_MEDIA}"></figure>`);
+    expect(body).not.toContain("fbcdn");
   } finally {
     spy.mockRestore();
   }

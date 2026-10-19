@@ -97,6 +97,7 @@ async function facebookOg(
     description: post.caption,
     url: cleaned.href,
     media: { ...item, url: mediaUrl },
+    article: { heading: post.username, media: [{ ...item, url: mediaUrl }] },
   });
   return new Response(page, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
@@ -119,6 +120,10 @@ async function instagramOg(
     description: post.caption,
     url: landing.href,
     media: { ...item, url: mediaUrl },
+    article: {
+      heading: `@${post.username}`,
+      media: post.media.map((each, i) => ({ ...each, url: `${requestUrl.origin}/media/${shortcode}/${i + 1}` })),
+    },
   });
   return new Response(page, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }

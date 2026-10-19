@@ -187,3 +187,75 @@ test("ampersands in a video url are escaped in og:video", () => {
 test("an image preview is byte-identical to the page captured before video tags", () => {
   expect(renderOgPage(imagePage)).toBe(imagePageBeforeVideo);
 });
+
+const articlePage = {
+  title: "@egg (2/3)",
+  description: "first line\nsecond <line>\n\nnext paragraph",
+  url: "https://www.instagram.com/p/X/",
+  image: "https://bl.example/media/X/2",
+  article: {
+    heading: "@egg",
+    media: [
+      { kind: "image" as const, url: "https://bl.example/media/X/1" },
+      { kind: "video" as const, url: "https://bl.example/media/X/2?a=1&b=2", width: 720, height: 1280 },
+      { kind: "image" as const, url: "https://bl.example/media/X/3" },
+    ],
+  },
+};
+
+function articleOf(html: string): string {
+  const match = html.match(/<article>\n([\s\S]*)\n<\/article>/);
+  expect(match).not.toBeNull();
+  return match![1];
+}
+
+test("an article page puts the heading, caption and every media item in the body for instant view", () => {
+  expect(articleOf(renderOgPage(articlePage))).toBe(
+    [
+      "<h1>@egg</h1>",
+      "<p>first line<br>second &lt;line&gt;</p>",
+      "<p>next paragraph</p>",
+      '<div class="carousel">',
+      '<img src="https://bl.example/media/X/1">',
+      '<video src="https://bl.example/media/X/2?a=1&amp;b=2" width="720" height="1280"></video>',
+      '<img src="https://bl.example/media/X/3">',
+      "</div>",
+    ].join("\n"),
+  );
+});
+
+test("an article page keeps the head of the page it previews", () => {
+  const { article: _, ...head } = articlePage;
+  const page = renderOgPage(articlePage);
+  expect(page.slice(0, page.indexOf("<body>"))).toBe(
+    renderOgPage(head).slice(0, renderOgPage(head).indexOf("<body>")),
+  );
+});
+
+test("an article with one media item is a figure, not a carousel", () => {
+  const body = articleOf(
+    renderOgPage({ ...articlePage, article: { heading: "@egg", media: [articlePage.article.media[0]!] } }),
+  );
+  expect(body).toContain('<figure><img src="https://bl.example/media/X/1"></figure>');
+  expect(body).not.toContain("carousel");
+});
+
+test("an article keeps the whole caption that the og description truncates", () => {
+  const description = "a".repeat(300);
+  expect(articleOf(renderOgPage({ ...articlePage, description }))).toContain(`<p>${description}</p>`);
+});
+
+test("an article without a caption has no paragraph", () => {
+  expect(articleOf(renderOgPage({ ...articlePage, description: "" }))).not.toContain("<p>");
+});
+
+test("an article heading is escaped", () => {
+  const html = renderOgPage({ ...articlePage, article: { ...articlePage.article, heading: "<b>&" } });
+  expect(articleOf(html)).toContain("<h1>&lt;b&gt;&amp;</h1>");
+});
+
+test("an article splits paragraphs on crlf and whitespace-only blank lines", () => {
+  expect(articleOf(renderOgPage({ ...articlePage, description: "a\r\nb\r\n\r\nc\n \nd" }))).toContain(
+    "<p>a<br>b</p>\n<p>c</p>\n<p>d</p>",
+  );
+});
