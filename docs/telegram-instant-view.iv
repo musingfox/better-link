@@ -1,0 +1,7 @@
+~version: "2.1"
+
+?exists: //article/h1
+
+title:       //article/h1
+<slideshow>: //div[has-class("carousel")]
+body:        //article

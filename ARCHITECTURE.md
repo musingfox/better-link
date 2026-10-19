@@ -13,7 +13,7 @@ better-link is a single Cloudflare Worker with three kinds of request. A convers
 - `src/fix-services.ts` maps other platforms to fix services (`fixServiceUrl`).
 - `src/instagram.ts` fetches the `/embed/captioned/` page and parses it into a `Post` (`instagramPost`, `parseEmbed`). The `Post` and `PostCache` types live here.
 - `src/facebook.ts` fetches `plugins/post.php` and `plugins/video.php` and parses them into a `Post` (`facebookPost`, `facebookVideo`).
-- `src/og.ts` renders a `Post` into og and twitter card HTML (`renderOgPage`).
+- `src/og.ts` renders a `Post` into og and twitter card HTML (`renderOgPage`), with the whole post in an `<article>` body that the Telegram Instant View template `docs/telegram-instant-view.iv` reads.
 - `cloudflare.config.ts` holds the Worker settings that `cf` reads. It declares the `SHARED_LINKS` KV binding only when the build variable `LOG_SHARED_LINKS` is `1`.
 - `src/shared-link-log.ts` (`logSharedLink`) writes one record per successful `GET /?url=` to `env.SHARED_LINKS` through `ctx.waitUntil`, after waiting up to 10 seconds for `summarize`. Without the binding it does nothing.
 - `src/summary.ts` (`summarize`) fetches a post's author and text for the log: Instagram and Facebook through their parsers, YouTube and X through oEmbed, Bluesky through its public API, Threads and the fix-service platforms through og tags.
