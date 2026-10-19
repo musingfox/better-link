@@ -10,6 +10,8 @@ import { hasSharedLinkLog, sharedLinkLogPage } from "./shared-link-log-page";
 import { summarize } from "./summary";
 
 const CONVERT_HINT = "pass a percent-encoded http(s) URL as ?url=";
+const IV_HINT = "pass the hex rhash of your Telegram Instant View template as &iv=";
+const RHASH = /^[0-9a-f]+$/i;
 const ITEM_SUFFIX = /^\/(p|reel)\/([^/]+)\/([1-9]\d?)\/?$/;
 
 function landingUrl(cleaned: URL): URL {
@@ -44,14 +46,31 @@ async function convert(
     return text(400, CONVERT_HINT);
   }
   if (!isShareable(target)) return text(400, CONVERT_HINT);
-  const cleaned = cleanUrl((await expandShareLink(target)) ?? target);
   const rawMode = requestUrl.searchParams.get("raw") === "1";
+  const rhash = rawMode ? "" : (requestUrl.searchParams.get("iv") ?? "");
+  if (rhash !== "" && !RHASH.test(rhash)) return text(400, IV_HINT);
+  const cleaned = cleanUrl((await expandShareLink(target)) ?? target);
   const prefix = rawMode ? "https://" : `${requestUrl.origin}/`;
   const link = `${cleaned.host}${cleaned.pathname}${cleaned.search}`;
   logSharedLink(env, ctx, `https://${link}`, rawMode, () =>
     summarize(new URL(`https://${link}`), { origin: requestUrl.origin, cache: deps.cache() }),
   );
-  return text(200, `${prefix}${link}`);
+  const shareLink = `${prefix}${link}`;
+  // Only pages the Worker renders itself carry the article an Instant View template reads;
+  // a fix service's page would not match it.
+  if (rhash === "" || ownPreview(cleaned) === null) return text(200, shareLink);
+  return text(200, `https://t.me/iv?url=${encodeURIComponent(shareLink)}&rhash=${rhash}`);
+}
+
+type OwnPreview = { platform: "instagram"; shortcode: string; index: number } | { platform: "facebook" };
+
+function ownPreview(cleaned: URL): OwnPreview | null {
+  if (INSTAGRAM_HOSTS.has(cleaned.hostname)) {
+    const instagram = instagramShortcode(cleaned.pathname);
+    return instagram === null ? null : { platform: "instagram", ...instagram };
+  }
+  if (isFacebookPostUrl(cleaned) || isFacebookVideoUrl(cleaned)) return { platform: "facebook" };
+  return null;
 }
 
 async function loadPost(
@@ -92,12 +111,13 @@ async function facebookOg(
   const item = post?.media[0];
   if (!post || item === undefined) return Response.redirect(cleaned.href, 302);
   const mediaUrl = `${requestUrl.origin}/media/${cleaned.hostname}${cleaned.pathname}${cleaned.search}`;
+  const media = { ...item, url: mediaUrl };
   const page = renderOgPage({
     title: post.username,
     description: post.caption,
     url: cleaned.href,
-    media: { ...item, url: mediaUrl },
-    article: { heading: post.username, media: [{ ...item, url: mediaUrl }] },
+    media,
+    article: { heading: post.username, media: [media] },
   });
   return new Response(page, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
@@ -148,11 +168,11 @@ async function shareRedirect(
   }
   const cleaned = cleanUrl(candidate);
   const landing = landingUrl(cleaned);
-  const instagram = INSTAGRAM_HOSTS.has(cleaned.hostname) ? instagramShortcode(cleaned.pathname) : null;
-  if (isCrawler(userAgent) && instagram !== null) {
-    return instagramOg(requestUrl, landing, instagram.shortcode, instagram.index, deps);
+  const own = ownPreview(cleaned);
+  if (isCrawler(userAgent) && own?.platform === "instagram") {
+    return instagramOg(requestUrl, landing, own.shortcode, own.index, deps);
   }
-  if (isCrawler(userAgent) && (isFacebookPostUrl(cleaned) || isFacebookVideoUrl(cleaned))) {
+  if (isCrawler(userAgent) && own?.platform === "facebook") {
     return facebookOg(requestUrl, cleaned, deps);
   }
   const fixed = isCrawler(userAgent) ? fixServiceUrl(cleaned) : null;

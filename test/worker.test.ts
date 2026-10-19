@@ -369,6 +369,50 @@ test("a mobile facebook share link converts to the cleaned mobile canonical url"
   }
 });
 
+test("iv wraps an instagram share link in a telegram instant view link", async () => {
+  const res = await call(
+    "https://bl.example/?iv=9d9dcd0763add6&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F%3Figsh%3Dx",
+  );
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe(
+    `https://t.me/iv?url=${encodeURIComponent("https://bl.example/www.instagram.com/p/DOBXTYNklfi/")}&rhash=9d9dcd0763add6`,
+  );
+});
+
+test("iv wraps a facebook video share link in a telegram instant view link", async () => {
+  const res = await call(
+    `https://bl.example/?iv=9d9dcd0763add6&url=${encodeURIComponent("https://www.facebook.com/reel/1016339268064528?mibextid=x")}`,
+  );
+  expect(await res.text()).toBe(
+    `https://t.me/iv?url=${encodeURIComponent("https://bl.example/www.facebook.com/reel/1016339268064528")}&rhash=9d9dcd0763add6`,
+  );
+});
+
+test("iv leaves a share link that the worker does not render unwrapped", async () => {
+  const res = await call("https://bl.example/?iv=9d9dcd0763add6&url=https%3A%2F%2Fx.com%2Fjack%2Fstatus%2F20%3Fs%3D20");
+  expect(await res.text()).toBe("https://bl.example/x.com/jack/status/20");
+});
+
+test("iv is ignored with raw=1", async () => {
+  const res = await call(
+    "https://bl.example/?raw=1&iv=9d9dcd0763add6&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F",
+  );
+  expect(await res.text()).toBe("https://www.instagram.com/p/DOBXTYNklfi/");
+});
+
+test("an invalid iv is ignored with raw=1 like a valid one", async () => {
+  const res = await call("https://bl.example/?raw=1&iv=zz&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F");
+  expect(res.status).toBe(200);
+  expect(await res.text()).toBe("https://www.instagram.com/p/DOBXTYNklfi/");
+});
+
+test("an iv that is not a hex rhash is rejected", async () => {
+  const res = await call(
+    "https://bl.example/?iv=9d9d%26x%3D1&url=https%3A%2F%2Fwww.instagram.com%2Fp%2FDOBXTYNklfi%2F",
+  );
+  expect(res.status).toBe(400);
+});
+
 test("raw=1 returns the cleaned original instead of a share link", async () => {
   const res = await call(
     "https://bl.example/?raw=1&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ%26t%3D42%26si%3Dabc",
