@@ -1737,6 +1737,24 @@ test("a discord crawler receives a facebook og page", async () => {
   }
 });
 
+test("the instant view bot's tg_rhash does not reach the facebook og page or upstream", async () => {
+  const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = stubFetch(() => Promise.resolve(new Response(html, { status: 200 })));
+  try {
+    const res = await callWorker(app, `${MANNY_SHARE}&tg_rhash=9d9dcd0763add6`, {
+      "User-Agent": "TelegramBot (like TwitterBot)",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain(`<meta property="og:url" content="${MANNY}">`);
+    expect(body).toContain(`<meta property="og:image" content="${MANNY_MEDIA}">`);
+    expect(spy.mock.calls[0]?.[0]).toBe(MANNY_PLUGIN);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 test("a facebook story preview points at the cleaned media url", async () => {
   const html = await facebookFixture("post-1Fu5ScGFUZ.zh-Hant.html");
   const app = createWorker({ cache: () => fakeCache().cache });

@@ -192,3 +192,9 @@ test("threads drops the share parameter xmt", () => {
 test("xmt is kept on hosts other than threads", () => {
   expect(cleanUrl(new URL("https://example.com/?xmt=1")).href).toBe("https://example.com/?xmt=1");
 });
+
+test("telegram's instant view tg_rhash is removed like a tracking parameter", () => {
+  expect(cleanUrl(new URL("https://www.facebook.com/story.php?story_fbid=1&id=2&tg_rhash=9d9dcd0763add6")).href).toBe(
+    "https://www.facebook.com/story.php?story_fbid=1&id=2",
+  );
+});
