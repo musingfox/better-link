@@ -155,24 +155,49 @@ function richPage(type: string, node: unknown): string {
   return `<div data-media-type="${type}"><span class="UsernameText">u</span><script>{"contextJSON":${literal}}</script></div>`;
 }
 
-test("a copyright-blocked video embed yields no post", async () => {
-  expect(parseEmbed(await fixture("embed-Dd0M_ifNfXO.html"))).toBeNull();
+const COVER_FRAME = [
+  {
+    kind: "image" as const,
+    url: expect.stringMatching(
+      /^https:\/\/scontent\.cdninstagram\.com\/v\/t51\.82787-15\/825269646_18629137711044933_165147988821785013_n\.jpg\?/,
+    ),
+  },
+];
+
+test("a copyright-blocked video embed yields its cover frame as an image", async () => {
+  const post = parseEmbed(await fixture("embed-Dd0M_ifNfXO.html"));
+  expect(post?.username).toBe("atlanticrecords");
+  expect(post?.media).toEqual(COVER_FRAME);
+  expect(post?.media[0]?.url).not.toContain("&amp;");
 });
 
-test("a watch-on-instagram marker on a playable video yields no post", async () => {
+test("a copyright-blocked video embed without a cover frame yields no post", async () => {
+  const html = (await fixture("embed-Dd0M_ifNfXO.html")).replace('class="EmbeddedMediaImage"', 'class="Other"');
+  expect(parseEmbed(html)).toBeNull();
+});
+
+test("a copyright-blocked carousel yields no post", async () => {
+  const html = (await fixture("embed-Dd0M_ifNfXO.html")).replace(
+    'data-media-type="GraphVideo"',
+    'data-media-type="GraphSidecar"',
+  );
+  expect(parseEmbed(html)).toBeNull();
+});
+
+test("a watch-on-instagram marker on a playable video yields its cover frame", async () => {
   const html = (await fixture("embed-DJvkjAlvNc8.html")).replace(
     '<span class="UsernameText">vatsalya_therapy</span>',
     '<span class="UsernameText">vatsalya_therapy</span><span class="WatchOnInstagram">Watch on Instagram</span>',
   );
-  expect(parseEmbed(html)).toBeNull();
+  expect(parseEmbed(html)?.media).toEqual([{ kind: "image", url: expect.any(String) }]);
 });
 
-test("a video whose context is copyright blocked yields no post", async () => {
+test("a video whose context is copyright blocked yields its cover frame", async () => {
   const html = (await fixture("embed-DJvkjAlvNc8.html")).replaceAll(
     '\\"copyright_blocked\\":false',
     '\\"copyright_blocked\\":true',
   );
-  expect(parseEmbed(html)).toBeNull();
+  expect(parseEmbed(html)?.media).toEqual([{ kind: "image", url: expect.any(String) }]);
 });
 
 test("a video without a video url yields no post", async () => {

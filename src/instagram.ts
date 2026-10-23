@@ -277,21 +277,27 @@ function richItems(type: string, context: unknown): Media[] | null {
   return items;
 }
 
+function imagePost(username: string, html: string): Post | null {
+  const mediaUrl = mediaUrlOf(html);
+  if (mediaUrl === null) return null;
+  return { username, caption: captionOf(html), media: [{ kind: "image", url: mediaUrl }] };
+}
+
 export function parseEmbed(html: string): Post | null {
   try {
-    if (html.includes("WatchOnInstagram")) return null;
+    const watchOnly = html.includes("WatchOnInstagram");
     const type = mediaType(html);
     const username = usernameOf(html);
     if (!username) return null;
-    if (type === "GraphImage") {
-      const mediaUrl = mediaUrlOf(html);
-      if (mediaUrl === null) return null;
-      return { username, caption: captionOf(html), media: [{ kind: "image", url: mediaUrl }] };
-    }
+    if (type === "GraphImage") return watchOnly ? null : imagePost(username, html);
     if (type !== "GraphVideo" && type !== "GraphSidecar") return null;
     const context = readContext(html);
     if (context === null) return null;
-    if (asRecord(asRecord(context)?.context)?.copyright_blocked === true) return null;
+    // A copyright-blocked video has no video_url in the embed, but the page still
+    // shows its cover frame, which beats no preview at all.
+    if (watchOnly || asRecord(asRecord(context)?.context)?.copyright_blocked === true) {
+      return type === "GraphVideo" ? imagePost(username, html) : null;
+    }
     const media = richItems(type, context);
     if (media === null) return null;
     return { username, caption: captionOf(html), media };
