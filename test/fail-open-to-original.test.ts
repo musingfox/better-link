@@ -106,10 +106,25 @@ test("a crawler is redirected when the cache binding throws", async () => {
   }
 });
 
-test("a crawler is redirected when the embed video is blocked", async () => {
+test("a crawler receives an og page with the cover frame for a blocked reel", async () => {
   const html = await fixture("embed-Dd0M_ifNfXO.html");
-  const fake = await expectOpen(() => Promise.resolve(new Response(html, { status: 200 })), 1);
-  expect(fake.entries.size).toBe(0);
+  const app = createWorker({ cache: () => fakeCache().cache });
+  const spy = spyOn(globalThis, "fetch").mockImplementation(
+    (() => Promise.resolve(new Response(html, { status: 200 }))) as unknown as typeof fetch,
+  );
+  try {
+    const res = await app.fetch(
+      new Request("https://bl.example/www.instagram.com/reel/Dd0M_ifNfXO/", { headers: { "User-Agent": DISCORD } }),
+      {} as Env,
+      ctx,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<meta property="og:image" content="https://bl.example/media/Dd0M_ifNfXO/1">');
+    expect(body).not.toContain("og:video");
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 test("a crawler on an instagram item link is sent to the post when fetch fails", async () => {
@@ -149,8 +164,8 @@ test("a crawler asking for a missing carousel item is sent to the post", async (
   );
 });
 
-test("a crawler on a blocked reel is sent to the reel", async () => {
-  const html = await fixture("embed-Dd0M_ifNfXO.html");
+test("a crawler on a blocked reel without a cover frame is sent to the reel", async () => {
+  const html = (await fixture("embed-Dd0M_ifNfXO.html")).replace('class="EmbeddedMediaImage"', 'class="Other"');
   const fake = await expectOpen(
     () => Promise.resolve(new Response(html, { status: 200 })),
     1,
